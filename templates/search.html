@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block functions %}
+	<script src="static/js/cookies.js"></script>
+
+	<script type="text/javascript">
+		$(document).ready(function() {
+			let player_names = window.getCookie('playerNames')
+			
+			if(player_names && player_names.length > 0){
+				
+				if(player_names.length >= 5){
+					player_names = player_names.slice(-5)
+				}
+
+				let list = player_names.map(player =>  `<a href="${player.href}">${player.text}</a>`);
+				
+				$('#recent_searches').append(list.join(' | '))
+				$('#recent_searches').show()
+				$('#recent_searches').children().show()
+			} else {
+				window.setCookie('playerNames', [])
+				$('#recent_searches').hide()
+				$('#recent_searches').children().hide()
+			}			
+		});
+	</script>
+{% endblock %}
+
+{% block body %}
+	<div class="card shadow-sm">
+		<div class='card-header' style="text-align: center">
+			Welcome!
+		</div>
+		<div class="card-body">
+			<br>
+			<form method="POST" action='/search' class="form-horizontal" id='search_form'>
+				{{ forms.search_field(name='player_name', type='text', placeholder='Enter a Players Name', required='true') }}
+				{{ forms.select_field(name='platform', type='text', required='true', options=platform_selections) }}
+				<input type="hidden" id="first_search" name='first_search' value="true">
+				<input type="submit" style="display: none"/>
+
+				<div id='recent_searches'>
+					<hr>
+					<h6>Some of your recent Searches:</h6>
+				</div>
+			</form>
+		</div>
+	</div>
+	<br>
+	<div class="card shadow-sm">
+		<div class='card-header' style="text-align: center">
+			FAQ
+		</div>
+		<div class="card-body">
+			<p>Q: What is this site?</p>
+			<p>A: This site is simply an alternative to much bigger sites such as PUBGLookup, PUBG.OP.GG etc</p>
+			<hr>
+			<p>Q: Why did you create this site?</p>
+			<p>A: I created this site as a pet-project :)</p>
+			<hr>
+			<p>Q: What can we do with this site?</p>
+			<p>A: Well, currently it is pretty simple. But, currently this site has the following features
+				<ol>
+					<li>View any PUBG Matches from a user played in the last 14 days (<a href='/user/dstlny/platform/steam/'>Me, for example</a>)</li>
+					<li>View the details of a given match, as well as what happend in a given match.</li>
+					<li>View other people which participated in those matches.</li>
+					<li>Filter the list of matches by Game Mode, Perspective, and view an entire leaderboard of those matches.</li>
+				</ol>
+			</p>
+			<hr>
+			<p>Q: Is this site open-source? If so, can you share it?</p>
+			<p>A: <a href='https://github.com/dstlny/PUBG-API-Stats-Site'>https://github.com/dstlny/PUBG-API-Stats-Site</a> :)</p>
+			<hr>
+		</div>
+	</div>
+{% endblock %}

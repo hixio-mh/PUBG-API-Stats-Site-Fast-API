@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block functions %}{% endblock %}
+
+{% block body %}
+<script type="application/javascript">
+
+	var table;
+
+	$(document).ready(function () {
+
+		let base_url = window.location.href
+		let platform = "{{ platform }}"
+		let season =  $('#id_seasons')
+		let game_mode = $('#id_game_mode')
+		let region = $('#id_regions')
+		let region_container = $('#id_regions_container')
+		let requires_shard = season.children("option:selected")[0].dataset.requiresShard
+		let season_id = season.children("option:selected").val();
+
+		let requires_shard_message = $('#region-required')
+		
+		if(requires_shard == 'false'){
+			requires_shard = false
+		} else {
+			requires_shard = true
+		}
+
+		if(requires_shard){
+			region_container.show()
+			requires_shard_message.text(`Season ${season_id} requires that you enter a region for ${platform}`)
+			requires_shard_message.show()
+		} else {
+			region_container.hide()
+			requires_shard_message.hide()
+		}
+
+		table = $('#datatable').DataTable({
+			data: [],
+			pageLength: 100,
+			order: [
+				[0, "asc"]
+			],
+			paging: true,
+			bFilter: true,
+			bSort: true,
+			bLengthChange: true,
+		});
+
+		$("#id_seasons, #id_game_mode, #id_regions").change(function() {
+
+			let id = $(this).attr('id')
+
+			let season_id = season.children("option:selected").val();
+			let game_mode_val = game_mode.children("option:selected").val();
+			let region_val = region.children("option:selected").val();
+			requires_shard = season.children("option:selected")[0].dataset.requiresShard
+
+			if(requires_shard == 'false'){
+				requires_shard = false
+			} else {
+				requires_shard = true
+			}
+
+			let correct = true
+
+			let new_url = `${base_url}/${season_id}/${game_mode_val}/`
+
+			if(requires_shard){
+				region_container.show()
+				if(region_val !== ''){
+					new_url = new_url.replace(platform, region_val)
+					requires_shard_message.hide()
+					correct = true
+				} else {
+					correct = false
+					requires_shard_message.text(`Season ${season_id} requires that you enter a region for ${platform}`)
+					requires_shard_message.show()
+				}
+			} else {
+				region_container.hide()
+				requires_shard_message.hide()
+				correct = true
+			}
+
+			if(correct){
+			
+				$.ajax({
+					type: 'GET',
+					url: new_url
+				}).done(function(data){
+					table.clear().draw()
+
+					let included = data.included
+					let errors = data.errors
+
+					if(included){
+
+						let data = []
+
+						for (let i=0, len=included.length; i < len; i++){
+							let row = included[i]
+
+							let name = row.attributes.name
+							let rank = row.attributes.rank
+							
+							let avgDamage = row.attributes.stats.averageDamage
+							let avgRank = row.attributes.stats.averageRank
+							let totalGames = row.attributes.stats.games
+							let kills = row.attributes.stats.kills
+							let wins = row.attributes.stats.wins
+
+							table.row.add([rank, name, avgDamage, avgRank, totalGames, wins]).draw();
+						}
+					} else {
+
+						let message = document.getElementsByClassName("dataTables_empty")[0]
+						message.innerHTML = `No data available for Season '${season_id}' for mode '${game_mode_val}' on platform '${platform}'.`
+						
+						if(errors && errors[0].detail.includes('missing')){
+							message.innerHTML += ` You might need to potentially pick a region.`
+							region_container.show()
+						}
+					}
+
+				});
+
+			}
+
+		});
+
+	});
+
+</script>
+
+<div class="container" style='max-width: 1080px'>
+
+	<div class='row'>
+		{{ forms.select_field(name='seasons', required='true', options=season_selections) }}
+		{{ forms.select_field(name='regions', required='true', options=region_selection) }}
+		{{ forms.select_field(name='game_mode', required='true', options=game_mode_selection) }}
+	</div>
+	<div class='row'>
+		<div class='col-md-12'>
+			<div class="alert alert-danger" role="alert" id='region-required' style='display: none'>
+				
+			</div>
+		</div>
+	</div>
+	<table class='table table-condensed hover' id='datatable' style="width:100%;">
+		<thead>
+			<tr>
+				<th>Rank</th>
+				<th>Name</th>
+				<th>Avg Damage</th>
+				<th>Avg Rank</th>
+				<th>Total Games</th>
+				<th>Wins</th>
+			</tr>
+		</thead>
+		<tbody>
+		</tbody>
+	</table>
+
+</div>
+
+{% endblock %}

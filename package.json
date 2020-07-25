@@ -1,0 +1,31 @@
+{
+   "name": "node-local",
+   "version": "1.0.0",
+   "description": "This is a node version of my Python PUBG Stats app",
+   "main": "server.js",
+   "scripts": {
+      "test": "test",
+      "start": "node server.js"
+   },
+   "author": "",
+   "license": "ISC",
+   "dependencies": {
+      "axios": "*",
+      "fastify": "*",
+      "fastify-formbody": "*",
+      "fastify-static": "*",
+      "fastify-typeorm": "*",
+      "minimist": "^1.2.5",
+      "mysql2": "*",
+      "node": "^14.2.0",
+      "nodemon": "^2.0.4",
+      "nunjucks": "*",
+      "point-of-view": "*",
+      "reflect-metadata": "*"
+   },
+   "devDependencies": {
+      "@types/node": "^8.10.60",
+      "ts-node": "3.3.0",
+      "typescript": "3.3.3333"
+   }
+}

@@ -1,0 +1,66 @@
+{% macro text_field(name, value='', type='text', placeholder='', required='') %}
+    <div class="form-group col"  id='id_{{ name }}_container'>
+        <input type="text" name="{{ name }}" placeholder="{{ placeholder }}" class="form-control" required="{{ required }}" id="id_{{ name }}">
+    </div>
+    <br>
+{% endmacro %}
+
+{% macro search_field(name,  placeholder='', required='', value='', display=true) %}
+    <div class="input-group col" {% if not display %}style='display: none;'{% endif  %} id='id_{{ name }}_container'>
+        <input type="text" {% if value %}value='{{value}}'{% endif %} name="{{ name }}" placeholder="{{ placeholder }}" class="form-control" required="{{ required }}" id="id_{{ name }}">
+        <span class="input-group-append">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="fa fa-search"></i>
+            </button>
+        </span>
+    </div>
+    <br {% if not display %}style='display: none;'{% endif  %}>
+{% endmacro %}
+
+{% macro select_field(name, required='', options=[], value='', display=true) %}
+    <div class="form-group col" {% if not display %}style='display: none;'{% endif  %} id='id_{{ name }}_container'>
+        <select name="{{ name }}" class="form-control select" required="{{ required }}" id="id_{{ name }}">
+            {% for option in options %}
+                <option value="{{ option.value }}" {% if option.attr %}{{ option.attr.name }}="{{ option.attr.value }}"{% endif %}
+                {% if not value %}
+                    {% if loop.first %}selected="true"{% endif %}
+                {% elif value == option.value %}
+                    selected="true"
+                {% endif %}>{{ option.text }}</option>
+            {% endfor %}
+        </select>
+    </div>
+{% endmacro %}
+
+{% macro select_field_two_one_line(name_one, required_one='', options_one=[], value_one='', name_two, required_two='', options_two=[], value_two='') %}
+    <div class="row"  style='margin: 0'>    
+        <div class="col">
+            <select name="{{ name_one }}" class="form-control" required="{{ required_one }}" id="id_{{ name_one }}">
+                {% for option_one in options_one %}
+                    <option value="{{ option_one.value }}" 
+                    {% if not value_one %}
+                        {% if loop.first %}selected="true"{% endif %}
+                    {% elif value_one == option_one.value %}
+                        selected="true"
+                    {% endif %}
+                    >{{ option_one.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col">
+            <select name="{{ name_two }}" class="form-control" required="{{ required_two }}" id="id_{{ name_two }}">
+                {% for option_two in options_two %}
+                    <option value="{{ option_two.value }}" 
+                    {% if not value_two %}
+                      {% if loop.first %}selected="true"{% endif %}
+                    {% elif value_two == option_two.value %}
+                        selected="true"
+                    {% endif %}
+                    >{{ option_two.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <br>
+{% endmacro %}
+

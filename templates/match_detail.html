@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+
+{% block functions %}
+
+{% endblock functions %}
+
+
+{% block body %}
+<script type="application/javascript">
+
+	$(document).ready(function () {
+		const map_name = "{{ telemetry_data.match_data.match_map_name }}"
+
+		const telem_data = {{ telemetry_data.match_data.events|dump|safe }};
+
+		const x_y_co_ords = [
+			{%- for telemetry in telemetry_data.match_data.events -%}
+				{%- if telemetry.killer_x_cord -%}
+					{
+						x: '{{- telemetry.killer_x_cord -}}',
+						y: '{{- telemetry.killer_y_cord -}}',
+						id: 'telem_{{- loop.index -}}'
+					},
+				{%- endif -%}
+			{%- endfor -%}
+		];
+		
+		const roster_data = {{ telemetry_data.match_data.player_breakdown.rosters|dump|safe }}
+
+		$('#telemetry_datatable_datatable').DataTable({
+			data: telem_data,
+			columns:[
+				{ "data": "timestamp" },
+				{ "data": "event" },
+			],
+			pageLength: 5,
+			order: [[0, "asc"]],
+			scrollY: "400px",
+			scrollCollapse: true,
+			paging: false,
+			bFilter: true,
+			bSort: true,
+			bLengthChange: true,
+		});
+
+		$('#rosters_datatable').DataTable({
+			data: roster_data,
+			columns:[
+				{ "data": "roster_rank" },
+				{ "data": "participant_objects" },
+			],
+			pageLength: 5,
+			order: [[0, "asc"]],
+			scrollY: "200px",
+			scrollCollapse: true,
+			paging: false,
+			bFilter: true,
+			bSort: true,
+			bLengthChange: true,
+		});
+
+		function Circle(options){
+			this.x = options.x;
+			this.y = options.y;
+			this.fill = options.fill;
+			this.radius = options.radius
+			this.id = options.id
+
+			this.draw = function(this_scale, context){
+				context.fillStyle = this.fill;
+				context.lineWidth = 0.1;
+				context.beginPath();
+				context.arc(this.x / this_scale, this.y / this_scale,  this.radius, 0, 2 * Math.PI, true);
+				context.fill();
+			}
+		}
+
+		function map_scale(size){
+			switch(map_name){
+				case 'Erangel': return Math.floor(816000 / size);
+				case 'Miramar': return Math.floor(816000 / size);
+				case 'Sanhok': return Math.floor(408000 / size);
+				case 'Camp Jackal': return Math.floor(204000 / size);
+				case 'Karakin': return Math.floor(204000 / size);
+				case 'Vikendi': return Math.floor(612000 / size);
+			}
+		}
+
+		const markers = []
+
+		create_circles = function(){
+
+			for(var i = 0, len=x_y_co_ords.length; i < len; i++){
+				markers.push(new Circle({
+					x:  x_y_co_ords[i].x,
+					y:  x_y_co_ords[i].y,
+					fill: 'red',
+					radius: 0.5,
+					id:  x_y_co_ords[i].id
+				}))
+			}
+
+		}
+
+		create_circles()
+
+		function intersects(x, y, cx, cy, r) {
+			var dx = x - cx
+			var dy = y - cy
+			return dx * dx + dy * dy <= r * r
+		}
+
+		var canvas = document.getElementById('map_canvas')
+
+		var image = new Image();
+		image.onload = function() {
+			redraw();
+		}
+
+		image.src = "{{ telemetry_data.match_data.map_image }}";
+
+		map_container_width = $('#map_container')[0]
+		
+		image.width = map_container_width.offsetWidth
+		image.height = map_container_width.offsetWidth
+		canvas.width = image.width;
+		canvas.height = image.height;
+
+		var ctx = canvas.getContext('2d');
+		trackTransforms(ctx);
+
+		function redraw() {
+			var p1 = ctx.transformedPoint(0, 0);
+			var p2 = ctx.transformedPoint(canvas.width, canvas.height);
+			ctx.clearRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+			ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+			ctx.fillStyle = "rgb(255, 255, 255, 0)";
+			this_scale = map_scale(image.width)
+			for(var i = 0, len=markers.length; i < len; i++){
+				markers[i].draw(this_scale, ctx);
+			}
+		}
+
+		var lastX = canvas.width / 2, lastY = canvas.height / 2;
+
+		var dragStart, dragged;
+
+		canvas.addEventListener('mousedown', function (evt) {
+			document.body.style.mozUserSelect = document.body.style.webkitUserSelect = document.body.style.userSelect = 'none';
+			lastX = evt.offsetX || (evt.pageX - canvas.offsetLeft);
+			lastY = evt.offsetY || (evt.pageY - canvas.offsetTop);
+			dragStart = ctx.transformedPoint(lastX, lastY);
+			dragged = false;
+		}, false);
+
+		canvas.addEventListener('mousemove', function (evt) {
+			lastX = evt.offsetX || (evt.pageX - canvas.offsetLeft);
+			lastY = evt.offsetY || (evt.pageY - canvas.offsetTop);
+			dragged = true;
+			if (dragStart) {
+				var pt = ctx.transformedPoint(lastX, lastY);
+				ctx.translate(pt.x - dragStart.x, pt.y - dragStart.y);
+				redraw();
+			}
+		}, false);
+
+		canvas.addEventListener('mouseup', function (evt) {
+			dragStart = null;
+
+			if(evt.altKey){
+				lastX = evt.offsetX || (evt.pageX - canvas.offsetLeft);
+				lastY = evt.offsetY || (evt.pageY - canvas.offsetTop);
+				var pt = ctx.transformedPoint(lastX, lastY);
+				x = pt.x
+				y = pt.y
+
+				this_scale = map_scale(ctx.canvas.width)
+
+				for(var i = 0, len=markers.length; i < len; i++){
+					let marker = markers[i]
+					let item_x = marker.x / this_scale
+					let item_y = marker.y / this_scale
+
+					if (intersects(x, y, item_x, item_y, marker.radius)) {
+						page_y = evt.pageY-60
+						$(`#${marker.id}`).css({ 'top':`${page_y}px`, 'left': `${x}px`, 'position': 'absolute', 'border': '1px solid black', 'padding': '5px' });
+						$(`#${marker.id}`).show();
+					} else {
+						$(`#${marker.id}`).hide();
+					}
+
+				}
+			} else {
+				if (!dragged) zoom(evt.shiftKey ? -1 : 1);
+			}
+		}, false);
+
+		var scaleFactor = 1.1;
+
+		var zoom = function (clicks) {
+			var pt = ctx.transformedPoint(lastX, lastY);
+			ctx.translate(pt.x, pt.y);
+			var factor = Math.pow(scaleFactor, clicks);
+			ctx.scale(factor, factor);
+			ctx.translate(-pt.x, -pt.y);
+			redraw();
+		}
+
+		var handleScroll = function (evt) {
+			var delta = evt.wheelDelta ? evt.wheelDelta / 40 : evt.detail ? -evt.detail : 0;
+			if (delta) zoom(delta);
+			return evt.preventDefault() && false;
+		};
+
+		canvas.addEventListener('DOMMouseScroll', handleScroll, false);
+		canvas.addEventListener('mousewheel', handleScroll, false);
+
+		function trackTransforms(ctx) {
+			var svg = document.createElementNS("http://www.w3.org/2000/svg", 'svg');
+			var xform = svg.createSVGMatrix();
+			ctx.getTransform = function () { return xform; };
+
+			var savedTransforms = [];
+			var save = ctx.save;
+			ctx.save = function () {
+				savedTransforms.push(xform.translate(0, 0));
+				return save.call(ctx);
+			};
+
+			var restore = ctx.restore;
+			ctx.restore = function () {
+				xform = savedTransforms.pop();
+				return restore.call(ctx);
+			};
+
+			var scale = ctx.scale;
+			ctx.scale = function (sx, sy) {
+				xform = xform.scaleNonUniform(sx, sy);
+				return scale.call(ctx, sx, sy);
+			};
+
+			var rotate = ctx.rotate;
+			ctx.rotate = function (radians) {
+				xform = xform.rotate(radians * 180 / Math.PI);
+				return rotate.call(ctx, radians);
+			};
+
+			var translate = ctx.translate;
+			ctx.translate = function (dx, dy) {
+				xform = xform.translate(dx, dy);
+				return translate.call(ctx, dx, dy);
+			};
+
+			var transform = ctx.transform;
+			ctx.transform = function (a, b, c, d, e, f) {
+				var m2 = svg.createSVGMatrix();
+				m2.a = a; m2.b = b; m2.c = c; m2.d = d; m2.e = e; m2.f = f;
+				xform = xform.multiply(m2);
+				return transform.call(ctx, a, b, c, d, e, f);
+			};
+
+			var setTransform = ctx.setTransform;
+			ctx.setTransform = function (a, b, c, d, e, f) {
+				xform.a = a;
+				xform.b = b;
+				xform.c = c;
+				xform.d = d;
+				xform.e = e;
+				xform.f = f;
+				return setTransform.call(ctx, a, b, c, d, e, f);
+			};
+
+			var pt = svg.createSVGPoint();
+			ctx.transformedPoint = function (x, y) {
+				pt.x = x; pt.y = y;
+				return pt.matrixTransform(xform.inverse());
+			}
+		}
+
+	});
+
+</script>
+
+<div class="container" style='max-width: 1080px'>
+	<h4>Match Report for {{ telemetry_data.player_data.player_name }}</h4>
+	<h6 class="text-muted">{{ telemetry_data.match_data.time_since }} ({{ telemetry_data.match_data.match_id }})</h6>
+	<hr>
+
+	<div class='row'>
+
+		<div class="col-md-6">
+			<div class="card" id='match_detail_container'>
+				<div class="card-header" style='text-align: center'>
+					<h6>Match Details</h6>
+				</div>
+				<div class="card-body" style='height: max-content;' id='match_detail_container_body'>
+					<div class="list-group d-flex flex-row flex-wrap" style='width: 100%' id='map_container'>
+						<canvas id="map_canvas" width="100%"></canvas>
+						{%- for telemetry in telemetry_data.match_data.events -%}
+							{%- if telemetry.killer_x_cord -%}
+								<div class="card mb-3" id='telem_{{- loop.index -}}' style="max-width: auto; display: none;">
+									<div class="card-header">
+										Timestamp: <b>{{ telemetry.timestamp }}</b>
+									</div>
+									<div class="card-body">
+										{{ telemetry.event|safe -}}
+									</div>
+								</div>
+							{%- endif -%}
+						{%- endfor -%}
+					</div>
+					<br>
+					<table class="table table-bordered">
+						<tbody>
+							<tr>
+								<th class='card-header' width='40%'>Match length</th>
+								<td class='card-body'>{{ telemetry_data.match_data.match_elapsed_time }}</td>
+							</tr>
+							<tr>
+								<th class='card-header' width='40%'>Map</th>
+								<td class='card-body'>{{ telemetry_data.match_data.match_map_name }}</td>
+							</tr>
+							<tr>
+								<th class='card-header' width='40%'>Total Players</th>
+								<td class='card-body'>{{ telemetry_data.match_data.player_breakdown.total_count }}</td>
+							</tr>
+							<tr>
+								<th class='card-header' width='40%'>Total Bots</th>
+								<td class='card-body'>{{ telemetry_data.match_data.player_breakdown.ai_count }} ({{ telemetry_data.match_data.player_breakdown.ai_percentage }}%)</td>
+							</tr>
+							<tr>
+								<th class='card-header' width='40%'>Kills</th>
+								<td class='card-body'>{{ telemetry_data.player_data.player_kills }}</td>
+							</tr>
+							{% if telemetry_data.player_data.player_damage %}
+								<tr>
+									<th class='card-header' width='40%'>Damage</th>
+									<td class='card-body'>{{ telemetry_data.player_data.player_damage }}</td>
+								</tr>
+							{% endif %}
+							{% if telemetry_data.player_data.knocks %}
+								<tr>
+									<th class='card-header' width='40%'>Knocks</th>
+									<td class='card-body'>{{ telemetry_data.player_data.knocks }}</td>
+								</tr>
+							{% endif %}
+							<tr>
+								<th class='card-header' width='40%'>Meds used</th>
+								<td class='card-body'>{{ telemetry_data.player_data.heals_items_used }}</td>
+							</tr>
+							<tr>
+								<th class='card-header' width='40%'>Boosts used</th>
+								<td class='card-body'>{{ telemetry_data.player_data.boost_items_used }}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-md-6" style='height: 150px'>
+			<div class="card" id='telemetry_datatable_container'>
+				<div class="card-header">
+					<h6 style='float: left'>
+						Match events
+					</h6>
+					<span style='float: right'>
+						{{ telemetry_data.match_data.events|length }} events
+					</span>
+				</div>
+				<div class="card-body">
+					<table class='table table-condensed hover' id='telemetry_datatable_datatable' style="width:100%;">
+						<thead>
+							<tr>
+								<th width='30%'>Timestamp</th>
+								<th width='70%'>Event</th>
+							</tr>
+						</thead>
+						<tbody>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<br>
+			<div class="card">
+				<div class="card-header">
+					<h6 style='float: left'>
+						Match Leaderboard
+					</h6>
+					<span style='float: right'>
+						{{ telemetry_data.match_data.player_breakdown.rosters|length }} teams
+					</span>
+				</div>
+				<div class='card-body'>
+					<table class='table table-condensed hover' id='rosters_datatable' style='width: 100%'>
+						<thead>
+							<tr>
+								<th width='20%%'>Rank</th>
+								<th width='80%'>Team Details</th>
+							</tr>
+						</thead>
+						<tbody>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<br><br>
+		</div>
+
+	</div>
+
+</div>
+
+{% endblock %}
