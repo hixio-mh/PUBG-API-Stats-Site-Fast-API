@@ -1,8 +1,10 @@
-'use strict';
-
 var table; 
 
 $(document).ready(function() {
+
+
+	// disable errors...
+	$.fn.dataTable.ext.errMode = 'none';
 
 	var app = {	
 		table_rosters: {},
@@ -10,23 +12,15 @@ $(document).ready(function() {
 			ranked: false,
 			normal: false
 		},
-		times_requested: 0,
 		seen_match_ids: [],
+		actual_data: [],
 		down: false,
 		tries: 0,
-		no_matches: false,
-		retrieved: false,
 		ranked_showing: false,
 		matches_as_cards: false,
 		cards: [],
 
-		serialiseForm: function(){
-			return $('#search_form').serialize();
-		},
 		getPlayerName: function(){
-			return document.getElementById("id_player_name").value
-		},
-		getLastPlayerName: function(){
 			return document.getElementById("player_name").value
 		},
 		getPlatform: function(){
@@ -48,9 +42,6 @@ $(document).ready(function() {
 			return document.getElementById('season_stats_endpoint').value
 		},
 		setPlayerName: function(set_to){
-			document.getElementById("id_player_name").value = set_to
-		},
-		setLastPlayerName: function(set_to){
 			document.getElementById("player_name").value = set_to
 		},
 		setPlatform: function(set_to){
@@ -64,17 +55,6 @@ $(document).ready(function() {
 		},
 		setPerspective: function(set_to){
 			document.getElementById('id_perspective').value = set_to
-		},
-		loadResultsDataTable: function(){
-			let that = this;
-
-			that.getResults()
-	
-			setInterval(function() {
-				that.getResults()
-			}, 20000);
-	
-			that.seasonStatToggle(that.getPerspective(), this.ranked_showing)
 		},
 		clearSeasonStats: function(){
 			var elements = ['duo_season_stats','duo_season_matches','duo_season_damage__figure','duo_season_damage__text','duo_season_headshots__figure','duo_season_headshots__text','duo_season_kills__figure','duo_season_kills__text','duo_season_longest_kill__figure','duo_season_longest_kill__text','duo_fpp_season_stats','duo_fpp_season_matches','duo_fpp_season_damage__figure','duo_fpp_season_damage__text','duo_fpp_season_headshots__figure','duo_fpp_season_headshots__text','duo_fpp_season_kills__figure','duo_fpp_season_kills__text','duo_fpp_season_longest_kill__figure','duo_fpp_season_longest_kill__text','solo_fpp_season_stats','solo_fpp_season_matches','solo_fpp_season_damage__figure','solo_fpp_season_damage__text','solo_fpp_season_headshots__figure','solo_fpp_season_headshots__text','solo_fpp_season_kills__figure','solo_fpp_season_kills__text','solo_fpp_season_longest_kill__figure','solo_fpp_season_longest_kill__text','solo_season_stats','solo_season_matches','solo_season_damage__figure','solo_season_damage__text','solo_season_headshots__figure','solo_season_headshots__text','solo_season_kills__figure','solo_season_kills__text','solo_season_longest_kill__figure','solo_season_longest_kill__text','squad_season_stats','squad_season_matches','squad_season_damage__figure','squad_season_damage__text','squad_season_headshots__figure','squad_season_headshots__text','squad_season_kills__figure','squad_season_kills__text','squad_season_longest_kill__figure','squad_season_longest_kill__text','squad_fpp_season_stats','squad_fpp_season_matches','squad_fpp_season_damage__figure','squad_fpp_season_damage__text','squad_fpp_season_headshots__figure','squad_fpp_season_headshots__text','squad_fpp_season_kills__figure','squad_fpp_season_kills__text','squad_fpp_season_longest_kill__figure','squad_fpp_season_longest_kill__text']
@@ -253,89 +233,6 @@ $(document).ready(function() {
 			});
 	
 		},
-		callForm: function(){
-			let form_data = this.serialiseForm()
-			let player_name = this.getPlayerName()
-			let that = this
-		
-			if(player_name !== undefined && typeof player_name !== 'undefined'){
-				let last_player_name = that.getLastPlayerName()
-				if(last_player_name !== undefined && typeof last_player_name !== 'undefined'){
-					if(player_name.trim() == last_player_name.trim()){
-						that.retrieved = true
-						if(that.season_requested.ranked){
-							that.season_requested.ranked = true
-						} else {
-							that.season_requested.ranked = false
-						}
-						if(that.season_requested.normal){
-							that.season_requested.normal = true
-						} else {
-							that.season_requested.normal = false
-						}
-					} else {
-						that.retrieved = false
-						$('.loadingoverlay, div.roster_card').remove()
-						that.season_requested.ranked = false
-						that.season_requested.normal = false
-						$('#results_datatable').DataTable().clear().draw();
-						that.seen_match_ids = []
-						that.table_rosters = {}
-						that.cards = []
-						that.clearSeasonStats()
-					}
-				} else {
-					that.retrieved = false
-					$('.loadingoverlay, div.roster_card').remove()
-					that.season_requested.ranked = false
-					that.season_requested.normal = false
-					$('#results_datatable').DataTable().clear().draw();
-					that.seen_match_ids = []
-					that.table_rosters = {}
-					that.cards = []
-					that.clearSeasonStats()
-				}
-			}
-		
-			that.times_requested = 0
-		
-			$.ajax({
-				data: form_data,
-				type: 'POST',
-				url: $('#search_form').attr('action')   
-			}).done(function(data){
-				if(data.player_id && data.player_name){
-					that.setPlayerName(data.player_name)
-					that.setLastPlayerName(data.player_name)
-					that.setPlayerId(data.player_id)
-					if(!data.currently_processing){
-						that.loadResultsDataTable();
-						that.retrieved = true	
-					} else {
-						$("#error").hide()
-						if(data.no_new_matches){
-							let error = data.error || data.message
-							$("#error").slideDown()
-							$("#error_message").text(error);
-							that.loadResultsDataTable();	
-						} else {
-							$("#currently_processing").slideDown()
-							$('#currently_processing_message').text('Currently processing player, please bear with us...')
-							setTimeout(function(){
-								that.loadResultsDataTable();
-							}, 1000*30);
-							that.retrieved = true	
-						}
-					}
-				} else if(data.error){
-					$("#currently_processing").hide()
-					$("#error").slideDown()
-					$("#error_message").text(data.error);
-				}
-			}).fail(function(result){
-				console.log(result)
-			});
-		},
 		formatChildRow: function(id) {
 			let generated_datatable_id = `rosters_datatable_${id}`
 		
@@ -392,180 +289,6 @@ $(document).ready(function() {
 			
 			return generated_table_rows
 		
-		},
-		getResults: function(){
-			var data = {
-				player_id: this.getPlayerId(),
-				platform: this.getPlatform()
-			}
-
-			let that = this
-
-			let display_as_cards = that.display_as_cards
-
-			$.ajax({
-				url: that.getMatchesEndpoint(),
-				type:'POST',
-				data: data,
-			}).done(function(result){
-				$('#seasons_container').show();
-				if(result.data){
-					let i;
-					let match_id;
-					let len;
-					let player_name = that.getPlayerName();
-					let kills;
-					let len2;
-					let map;
-					let mode;
-					let date_created;
-					let team_placement;
-					let team_details;
-					let actions;
-					let btn_link;
-					let time_since;
-					let team_details_object;
-					let j;
-					let card_template;
-					let card;
-					let raw_mode;
-				
-					that.setPlayerId(result.player_id)
-
-					for (i = 0, len=result.data.length; i < len; i++){
-						match_id = result.data[i].id
-						if(!that.seen_match_ids.includes(match_id)){
-							that.seen_match_ids.push(match_id)
-
-							map = result.data[i].map
-							mode = result.data[i].mode
-							date_created = result.data[i].date_created
-							team_placement = result.data[i].team_placement
-							team_details = result.data[i].team_details
-							actions = result.data[i].actions
-							btn_link = result.data[i].btn_link
-							raw_mode = result.data[i].raw_mode
-							time_since = result.data[i].time_since
-							team_details_object = result.data[i].team_details_object
-
-							let row_node = table.row.add([
-								'',
-								map,
-								mode,
-								date_created,
-								team_placement,
-								team_details,
-								actions
-							]).node();
-							$(row_node).attr("id", match_id);
-							
-							for (j = 0, len2=team_details_object.length; j < len2; j++){
-								let player_object_name = team_details_object[j].player_name;
-								if(player_object_name == player_name){
-									kills = team_details_object[j].kills
-								}
-							}
-
-							if(kills === undefined || typeof kills === 'undefined'){
-								kills = 0
-							}
-
-							let generated_team_data = that.formatRosterCardTable(team_details_object)
-
-							let display = 'display: inline-block';
-							if(!display_as_cards){
-								display = 'display: none;'
-							} 
-
-							card_template =  `
-								<div class="col-md-4 roster_card" data-game-mode="${raw_mode.toLowerCase()}" style='margin-bottom: 15px; ${display}'>
-									<div class="card shadow-sm">
-										<div class="card-header">
-											<span class='float-left'>${map}</span>
-											<span class='float-right'>${time_since}</span>
-										</div>
-										<div class="card-body" style='padding: 20px'>
-											<div class='row'>
-												<a role="button" style='margin-left: 15px; margin-right: 15px' href="${btn_link}" class='btn btn-primary btn-block stretched-link'>View match</a>
-											</div>
-											<div class='row top-buffer'>
-												<div class='col-md-6'>
-													<span class="w-100 badge badge" style='padding: 20px; margin:0px; background-color: #f5f5f5'>
-														<h6>Place<br>${team_placement}</h6>
-													</span>
-												</div>
-												<div class='col-md-6'>
-													<span class="w-100 badge badge" style='padding: 20px; margin:0px; background-color: #f5f5f5'>
-														<h6>Kills<br><b>${kills}</b></h6>
-													</span>
-												</div>
-											</div>
-											<div class='detailed'>
-												<div class='row top-buffer'>
-													<div class='col-md-12'>
-														<table class="table table-bordered">
-															<tbody>
-																<tr>
-																	<th class='card-header' width='40%'>Date Created</th>
-																	<td class='card-body'>${date_created}</td>
-																</tr>
-																<tr>
-																	<th class='card-header' width='40%'>Mode</th>
-																	<td class='card-body'>${mode}</td>
-																</tr>
-															</tbody>
-														</table>
-													</div>
-												</div>
-												<div class='row top-buffer'>
-													${generated_team_data}
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
-							`
-
-							card = {
-								date_created: date_created,
-								template: card_template
-							}
-							that.cards.push(card)
-						}
-					}
-
-					if(that.cards){				
-						that.cards.sort(function(a,b){
-							// Turn your strings into dates, and then subtract them
-							// to get a value that is either negative, positive, or zero.
-							return new Date(b.date_created) - new Date(a.date_created);
-						});	
-						$('div.roster_card').remove()
-			
-						let cards_i;
-						let cards_len;
-			
-						for (cards_i = 0, cards_len=that.cards.length; cards_i < cards_len; cards_i++){
-							$('#card_container_row').append(that.cards[cards_i].template)
-						}
-					}
-
-					if(!that.matches_as_cards){
-						table.draw(false)
-					}
-
-					that.no_matches = false
-					$("#currently_processing").hide()
-					that.filterResults()
-				}
-			}).fail(function(data){
-				that.tries += 1
-				that.no_matches = true
-				if(that.tries > 6){
-					$("#disconnected").show()
-				}
-				that.checkDown()
-			});
 		},
 		getRosterForMatch: function(match_id, datatable_id){
 			
@@ -627,36 +350,34 @@ $(document).ready(function() {
 		},
 		seasonStatToggle: function(perspective) {
 	
-			if(!this.no_matches){
-				switch(perspective){
-					case 'fpp':
-						if(this.ranked_showing){
-							$('#fpp_row').show()
-							$('#tpp_row').hide()
-						} else {
-							$('#ranked_fpp_row').show()
-							$('#ranked_tpp_row').hide()
-						}
-						break;
-					case 'tpp':
-						if(this.ranked_showing){
-							$('#ranked_tpp_row').show()
-							$('#ranked_fpp_row').hide()
-						} else {
-							$('#tpp_row').show()
-							$('#fpp_row').hide()
-						}
-						break;
-					default:
-						if(this.ranked_showing){
-							$('#ranked_tpp_row, #ranked_fpp_row').show()
-						} else {
-							$('#tpp_row, #fpp_row').show()
-						}
-						break;
-				}
+			switch(perspective){
+				case 'fpp':
+					if(this.ranked_showing){
+						$('#fpp_row').show()
+						$('#tpp_row').hide()
+					} else {
+						$('#ranked_fpp_row').show()
+						$('#ranked_tpp_row').hide()
+					}
+					break;
+				case 'tpp':
+					if(this.ranked_showing){
+						$('#ranked_tpp_row').show()
+						$('#ranked_fpp_row').hide()
+					} else {
+						$('#tpp_row').show()
+						$('#fpp_row').hide()
+					}
+					break;
+				default:
+					if(this.ranked_showing){
+						$('#ranked_tpp_row, #ranked_fpp_row').show()
+					} else {
+						$('#tpp_row, #fpp_row').show()
+					}
+					break;
 			}
-		
+
 		},
 		checkDown: function(){
 			let that = this;
@@ -676,33 +397,162 @@ $(document).ready(function() {
 
 	$.fn.dataTable.moment('dd/mm/YYYY hh:ii:ss');
 
+	var player_name = app.getPlayerName();
+
 	table = $('#results_datatable').DataTable({
-		data: [],
-		paging: true,
-		bFilter: true,
-		bLengthChange: true,
-		order: [
-			[ 3, "asc" ]
-		], 
+		ajax:{
+			url: app.getMatchesEndpoint(),
+			type:'POST',
+			data: {
+				player_id: app.getPlayerId(),
+				platform: app.getPlatform()
+			},
+			error: function (xhr, error, code){
+                app.checkDown()
+            },
+			dataSrc: function (json) {
+				let json_data = json.data
+
+				if(json_data){
+					for (i = 0, len=json_data.length; i < len; i++){
+						let match_id = json_data[i].id
+
+						if(!app.seen_match_ids.includes(match_id)){
+							app.actual_data.push(json_data[i])
+							app.seen_match_ids.push(match_id)
+
+							let map = json_data[i].map
+							let mode = json_data[i].mode
+							let date_created = json_data[i].date_created
+							let team_placement = json_data[i].team_placement
+							let btn_link = json_data[i].btn_link
+							let raw_mode = json_data[i].raw_mode
+							let time_since = json_data[i].time_since
+							let team_details_object = json_data[i].team_details_object
+							let kills = 0
+
+							let display = 'display: inline-block';
+							if(!app.display_as_cards){
+								display = 'display: none;'
+							} 
+
+							for (let j = 0, len2=team_details_object.length; j < len2; j++){
+								let player_object_name = team_details_object[j].player_name;
+								if(player_object_name == player_name){
+									kills = team_details_object[j].kills
+								} else {
+									continue
+								}
+							}
+
+							let generated_team_data = app.formatRosterCardTable(team_details_object)
+							let card_template =  `
+								<div class="col-md-4 roster_card" data-game-mode="${raw_mode.toLowerCase()}" style='margin-bottom: 15px; ${display}'>
+									<div class="card shadow-sm">
+										<div class="card-header">
+											<span class='float-left'>${map}</span>
+											<span class='float-right'>${time_since}</span>
+										</div>
+										<div class="card-body" style='padding: 20px'>
+											<div class='row'>
+												<a role="button" style='margin-left: 15px; margin-right: 15px' href="${btn_link}" class='btn btn-primary btn-block stretched-link'>View match</a>
+											</div>
+											<div class='row top-buffer'>
+												<div class='col-md-6'>
+													<span class="w-100 badge badge" style='padding: 20px; margin:0px; background-color: #f5f5f5'>
+														<h6>Place<br>${team_placement}</h6>
+													</span>
+												</div>
+												<div class='col-md-6'>
+													<span class="w-100 badge badge" style='padding: 20px; margin:0px; background-color: #f5f5f5'>
+														<h6>Kills<br><b>${kills}</b></h6>
+													</span>
+												</div>
+											</div>
+											<div class='detailed'>
+												<div class='row top-buffer'>
+													<div class='col-md-12'>
+														<table class="table table-bordered">
+															<tbody>
+																<tr>
+																	<th class='card-header' width='40%'>Date Created</th>
+																	<td class='card-body'>${date_created}</td>
+																</tr>
+																<tr>
+																	<th class='card-header' width='40%'>Mode</th>
+																	<td class='card-body'>${mode}</td>
+																</tr>
+															</tbody>
+														</table>
+													</div>
+												</div>
+												<div class='row top-buffer'>
+													${generated_team_data}
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							`
+					
+							card = {
+								date_created: date_created,
+								template: card_template
+							}
+							app.cards.push(card)
+						}
+					}
+
+					if(app.cards){				
+						app.cards.sort(function(a,b){
+							// Turn your strings into dates, and then subtract them
+							// to get a value that is either negative, positive, or zero.
+							return new Date(b.date_created) - new Date(a.date_created);
+						});	
+						$('div.roster_card').remove()
+			
+						for (let cards_i = 0, cards_len=app.cards.length; cards_i < cards_len; cards_i++){
+							$('#card_container_row').append(app.cards[cards_i].template)
+						}
+					}
+
+					return app.actual_data
+				} else {
+					return []
+				}
+			}
+		},
+		createdRow: function (row, data, _) {
+			row.id = data.id
+        },
+		drawCallback: function( settings ) {
+			$('#seasons_container').show();
+		},
 		columns: [
+			{
+				visible: false,
+				orderable: false,
+				data: 'id',
+			},
 			{ 
 				className:'details-control',
 				orderable: false,
 				data: null,
 				defaultContent: '',
 			},
-			{ width: '10%' }, // map
-			{ width: '10%' }, // mode
-			{ width: '15%' }, // created
-			{ width: '10%' }, // placement
-			{ width: '30%' }, // details
-			{ width: '20%' }, // actions
+			{ width: '10%', data: 'map' }, // map
+			{ width: '10%', data: 'mode' }, // mode
+			{ width: '15%', data: 'date_created' }, // created
+			{ width: '10%', data: 'team_placement' }, // placement
+			{ width: '30%', data: 'team_details' }, // details
+			{ width: '20%', data: 'actions' }, // actions
 		],
 		pageLength: 25,
-		order: [[ 3, "desc" ]],
-		processing: true,
+		filter: true,
+		order: [[ 4, "desc" ]],
+		stateSave: true,
 		language: {
-			emptyTable: '<i class="fa fa-spinner fa-spin fa-fw"></i> '
+			emptyTable: 'This player has either played no matches in the last 14 days, or we are currently processing this players matches.'
 		},
 	});
 
@@ -789,27 +639,21 @@ $(document).ready(function() {
 	});
 
 	app.hideInitial();
-
-	$(document).on('submit', 'form#search_form', function(event){
-		
-		$("#season_stats_button").click(function(self) {
-			if(!app.season_requested.normal){
-				app.retrievePlayerSeasonStats(false)
-			}
-		});
-
-		event.preventDefault()
-
-		if(!app.retrieved){
-			app.hideInitial();
+	
+	$("#season_stats_button").click(function(self) {
+		if(!app.season_requested.normal){
+			app.retrievePlayerSeasonStats(false)
 		}
-
-		app.clearAll(window);
-		$('#seasons_container').hide();
-		app.callForm()
-
 	});
 
-	$('#search_form').submit();
+	app.seasonStatToggle(app.getPerspective(), app.ranked_showing)
+
+	app.clearAll(window);
+	$('#seasons_container').hide();
+		
 	window.cookies()
+
+	setInterval(function () {
+		table.ajax.reload(null, false);
+	}, 15000);
 });

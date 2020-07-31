@@ -1,3 +1,4 @@
+import sys
 from functions import (
 	build_url, build_lifetime_url, make_request, correct_perspective, correct_mode,
 	build_player_url, get_player_matches, retrieve_player_season_stats, build_player_account_id_url,
@@ -22,6 +23,9 @@ from dateutil.parser import parse
 
 from cache_utils import *
 
+import json
+import asyncio
+
 app = FastAPI()
 init(app)
 
@@ -44,33 +48,10 @@ async def search(parameters: route_models.Player, background_tasks: BackgroundTa
 	if cached_player_response:
 		return cached_player_response
 
-	player_platform_url_cache_key = api_settings.PLAYER_PLATFORM_URL_CACHE_KEY.format(player_name, platform)
-	player_player_url_cache_key =  api_settings.PLAYER_URL_CACHE_KEY.format(player_name, platform)
 	player_request_cache_key = api_settings.PLAYER_REQUEST_CACHE_KEY.format(player_name, platform)
 
-	cached_platform_url = await get_from_cache(player_platform_url_cache_key)
-
-	if not cached_platform_url:
-		platform_url = build_url(platform)
-		await create_cache(
-			cache_key=player_platform_url_cache_key,
-			content=platform_url,
-			minutes=10
-		)
-	else:
-		platform_url = cached_platform_url
-
-	cached_player_url = await get_from_cache(player_player_url_cache_key)
-
-	if not cached_player_url:
-		player_url = build_player_url(base_url=platform_url, player_name=player_name)
-		await create_cache(
-			cache_key=player_player_url_cache_key,
-			content=player_url,
-			minutes=10
-		)
-	else:
-		player_url = cached_player_url
+	platform_url = build_url(platform)
+	player_url = build_player_url(base_url=platform_url, player_name=player_name)
 
 	cached_player_request = await get_from_cache(player_request_cache_key)
 
@@ -88,7 +69,7 @@ async def search(parameters: route_models.Player, background_tasks: BackgroundTa
 
 	if 'data' in player_request:
 
-		api_ids = await Match.all().distinct().values_list('api_id', flat=True)
+		api_ids = await Match.all().only('api_id').distinct().values_list('api_id', flat=True)
 
 		if isinstance(player_request['data'], list):
 			player_id = player_request['data'][0]['id']
@@ -116,33 +97,17 @@ async def search(parameters: route_models.Player, background_tasks: BackgroundTa
 
 			if length_of_matches > 0:
 
-				player_currently_processing_cache_key = api_settings.PLAYER_CURRENTLY_PROCESSING_CACHE_KEY.format(player_id, platform)
-				currently_processing =  await get_from_cache(player_currently_processing_cache_key)
-
-				if not currently_processing:
-					await create_cache(
-						cache_key=player_currently_processing_cache_key,
-						content=True,
-						minutes=0.5
-					)
-					ajax_data['currently_processing'] = True
-					background_tasks.add_task(
-						get_player_matches,
-						player_id,
-						platform_url,
-						matches
-					)
-				else:
-					ajax_data['currently_processing'] = False
+				ajax_data['currently_processing'] = True
+				background_tasks.add_task(
+					get_player_matches,
+					player_id,
+					platform_url,
+					matches
+				)
 
 			else:
 				ajax_data['message'] =  "No new matches to process for this user."
 				ajax_data['no_new_matches'] = True
-
-				if cached_player_url:
-					await cache_touch(player_player_url_cache_key, 2)
-				if cached_platform_url:
-					await cache_touch(player_platform_url_cache_key, 2)
 
 		else:
 			ajax_data['error'] = "Sorry, looks like this player has not played any matches in the last 14 days."
@@ -162,27 +127,29 @@ async def search(parameters: route_models.Player, background_tasks: BackgroundTa
 async def retrieve_matches(parameters: route_models.Player):
 	
 	api_id = parameters.api_id
-
-	match_data_cache_key = api_settings.PLAYER_MATCH_DATA_CACHE_KEY.format(api_id)
-
-	cached_ajax_data  = await get_from_cache(match_data_cache_key)
-
-	if cached_ajax_data:
-		return cached_ajax_data
-
-	ajax_data = {}
-
 	current_player = await Player.filter(api_id=api_id).first()
 
 	if current_player:
 
+		match_data_cache_key = api_settings.PLAYER_MATCH_DATA_CACHE_KEY.format(api_id)
 		match_data = await get_match_data(api_id, current_player.id)
+		match_data_count = await match_data.count()
+		match_data_exists = await match_data.exists()
 
-		if match_data.exists():
+		cached_ajax_data  = await get_from_cache(match_data_cache_key)
+
+		if cached_ajax_data:
+			if not(match_data_count > len(cached_ajax_data['data'])):
+				return cached_ajax_data
+		
+		ajax_data = {}
+
+		if match_data_exists:
 
 			from ago import human
 
 			match_ids =  await match_data.distinct().values_list('match_id', flat=True)
+			match_data = await match_data
 
 			ajax_data = {
 				'data':[
@@ -199,12 +166,12 @@ async def retrieve_matches(parameters: route_models.Player):
 								'kills': x.kills,
 								'player_name': x.player_name,
 								'damage': x.damage
-							} for x in await roster.participants.all()
+							} async for x in roster.participants
 						],
 						'team_placement': player_placement_format(roster.match.total_teams, roster.placement),
 						'actions': f'<a href="/match_detail/{roster.match.api_id}/" class="btn btn-link btn-sm active" role="button">View Match</a>',
 						'btn_link': f"/match_detail/{roster.match.api_id}/"
-					} for roster in await match_data
+					} for roster in match_data
 				],
 				'api_id': current_player.api_id,
 				'match_ids': match_ids
@@ -213,7 +180,7 @@ async def retrieve_matches(parameters: route_models.Player):
 			await create_cache(
 				cache_key=match_data_cache_key,
 				content=ajax_data,
-				minutes=2
+				minutes=0.1
 			)
 
 		else:
@@ -257,7 +224,7 @@ async def retrieve_season_stats(parameters: route_models.Player):
 		season__is_current=True,
 		season__platform=platform,
 		is_ranked=is_ranked
-	).prefetch_related('season')
+	).prefetch_related('season', 'player')
 
 	if is_ranked:
 
@@ -578,4 +545,9 @@ async def seasons_for_platform(parameters: route_models.Player):
 import uvicorn
 
 if __name__ == "__main__":
-	uvicorn.run(app, host="127.0.0.1", port=8000)
+	uvicorn.run(
+		app=app,
+		host="127.0.0.1",
+		port=8000,
+		loop='asyncio'
+	)

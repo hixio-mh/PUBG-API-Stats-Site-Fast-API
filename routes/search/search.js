@@ -24,7 +24,7 @@ module.exports = async function (fastify, opts, done) {
 			let no_new_matches = api_response.data.no_new_matches
 			let message = api_response.data.message
 
-			let redirect = `/user/${player_obj.player_name}/platform/${player_obj.platform}/`
+			let redirect = `accountID/${player_id}/user/${player_obj.player_name}/platform/${player_obj.platform}/`
 
 			let messages = []
 

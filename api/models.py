@@ -2,7 +2,14 @@ from tortoise import models
 from tortoise import fields
 from datetime import datetime
 
+######################################################
+# Tortoise Models
+######################################################
 class Map(models.Model):
+	''' 
+		This defines a Map from the PUBG API 
+	'''
+
 	id = fields.IntField(pk=True)
 	name = fields.CharField(max_length=64)
 	reference = fields.CharField(max_length=64)
@@ -12,6 +19,10 @@ class Map(models.Model):
 		return "{} ({})".format(self.name, self.reference)
 
 class Match(models.Model):
+	''' 
+		This defines a Match from the PUBG API
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255, unique=True)
 	match_type = fields.CharField(max_length=255, null=True)
@@ -26,6 +37,10 @@ class Match(models.Model):
 		return "{} - {}".format(self.api_id, self.map.name)
 
 class Cache(models.Model):
+	''' 
+		This is the database cache, this holds data such as cached player data
+	'''
+
 	id = fields.IntField(pk=True)
 	cache_key = fields.CharField(max_length=255, unique=True)
 	content = fields.TextField()
@@ -38,6 +53,10 @@ class Cache(models.Model):
 		return "{} - {}".format(self.cache_key, self.expires)
 
 class MatchParticipant(models.Model):
+	''' 
+		This defines a Participant in a give Match from the PUBG API
+	'''
+
 	id = fields.IntField(pk=True)
 	match = fields.ForeignKeyField('api.Match', on_delete=fields.CASCADE)
 	participant = fields.ForeignKeyField('api.Participant', on_delete=fields.CASCADE)
@@ -46,6 +65,10 @@ class MatchParticipant(models.Model):
 		return "{} - {}".format(self.match.api_id, self.participant.player_name)
 
 class Participant(models.Model):
+	''' 
+		This defines a Participant of a Match
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255)
 	player_name = fields.CharField(max_length=255)
@@ -64,6 +87,10 @@ class Participant(models.Model):
 		return "{} - {}".format(self.api_id, self.player_name)
 
 class Player(models.Model):
+	''' 
+		This defines a Player from the PUBG API
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255)
 	platform_url = fields.CharField(max_length=255, null=True)
@@ -73,6 +100,10 @@ class Player(models.Model):
 		return self.api_id
 
 class PlayerSeasonStats(models.Model):
+	''' 
+		This defines a give Players Season Stats that have been pulled from the PUBG API
+	'''
+
 	id = fields.IntField(pk=True)
 	mode = fields.CharField(max_length=255, null=True)
 	assists = fields.IntField(null=True)
@@ -119,6 +150,10 @@ class PlayerSeasonStats(models.Model):
 		return "{} - {}".format(self.player.name, self.season.api_id)
 
 class Roster(models.Model):
+	''' 
+		This defines a give Roster in a given Match
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255)
 	placement = fields.IntField(null=True)
@@ -129,16 +164,22 @@ class Roster(models.Model):
 		return f"{self.api_id} - {self.match.api_id}"
 
 class RosterParticipant(models.Model):
+	''' 
+		This defines a give Participant from a Roster in a given Match
+	'''
+
 	id = fields.IntField(pk=True)
 	participant = fields.ForeignKeyField('api.Participant', on_delete=fields.CASCADE)
 	roster = fields.ForeignKeyField('api.Roster', on_delete=fields.CASCADE)
 
-	async def __str__(self):
-		participant = await self.participant.first()
-		roster = await self.roster.first()
-		return f"{participant.player_name} - {roster.api_id}"
+	def __str__(self):
+		return f"{self.id}"
 
 class Season(models.Model):
+	''' 
+		This defines a give PUBG Season
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255)
 	is_current = fields.IntField(null=True)
@@ -154,6 +195,10 @@ class Season(models.Model):
 			return "{} - {} - {}".format(self.api_id, self.platform, 'Not current')
 
 class Telemetry(models.Model):
+	''' 
+		This defines the Telemtry for a given match
+	'''
+
 	id = fields.IntField(pk=True)
 	api_id = fields.CharField(max_length=255)
 	api_url = fields.CharField(max_length=255)
@@ -164,6 +209,10 @@ class Telemetry(models.Model):
 		return f"{self.api_id} - {self.match.api_id}"
 
 class TelemetryEvent(models.Model):
+	''' 
+		This defines a Event for a matches Telemetry
+	'''
+
 	id = fields.IntField(pk=True)
 	event_type = fields.CharField(max_length=255)
 	timestamp = fields.CharField(max_length=255, null=True)
@@ -179,6 +228,10 @@ class TelemetryEvent(models.Model):
 		return f"{self.timestamp} - {self.event_type} - {self.description}"
 
 class ItemTypeLookup(models.Model):
+	''' 
+		This defines the Tyypes of Items from the PUBG API, that is used within the Telemetry
+	'''
+
 	id = fields.IntField(pk=True)
 	name = fields.CharField(max_length=255)
 	reference = fields.CharField(max_length=255)
@@ -187,10 +240,13 @@ class ItemTypeLookup(models.Model):
 		return self.name
 
 class TelemetryRoster(models.Model):
+	''' 
+		This defines a Roster from the Telemetry
+	'''
+
 	id = fields.IntField(pk=True)
 	json = fields.JSONField()
 	telemetry = fields.ForeignKeyField('api.Telemetry', on_delete=fields.CASCADE, null=True)
 
 	def __str__(self):
 		return self.json
-

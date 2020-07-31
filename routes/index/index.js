@@ -11,13 +11,14 @@ module.exports = async function (fastify, opts, done) {
 
 	})
 
-	fastify.get('/user/:player_name/platform/:platform/', async(req, res) => {	
+	fastify.get('/accountID/:accountID/user/:player_name/platform/:platform/', async(req, res) => {	
 		
+		let account_id = req.params.accountID
 		let player_name = req.params.player_name
 		let platform = req.params.platform
 
 		let player_object = {
-			href: `/user/${player_name}/platform/${platform}/`,
+			href: `accountID/${account_id}/user/${player_name}/platform/${platform}/`,
 			text: `${player_name}'s profile` 
 		}
 		let urls = [player_object]
@@ -29,7 +30,8 @@ module.exports = async function (fastify, opts, done) {
 			base_address: fastify.base_address,
 			player_name: player_name,
 			platform: platform,
-			urls: urls
+			urls: urls,
+			account_id: account_id
 		}) 
 	})
 

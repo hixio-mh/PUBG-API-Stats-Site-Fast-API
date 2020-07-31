@@ -21,7 +21,13 @@ import settings as api_settings
 
 session = requests.Session()
 
-import logging
+from loguru import logger
+logger.add(
+	"../logs/errors_and_debug.log",
+	format="[{time:YYYY-MM-DD HH:mm:ss}]({level}) {message}",
+	level="INFO"
+)
+
 
 def build_url(platform):
 	if 'steam' in platform.strip().lower() or 'pc' in platform.strip().lower():
@@ -154,7 +160,7 @@ def make_request(url):
 
 async def parse_player_object(player_id, platform_url, matches):
 
-	player_ids = await Player.all().values_list('api_id', flat=True)
+	player_ids = await Player.all().only('api_id').distinct().values_list('api_id', flat=True)
 
 	if not player_id in player_ids:
 		player = Player(
@@ -163,12 +169,24 @@ async def parse_player_object(player_id, platform_url, matches):
 			api_url=build_player_account_id_url(platform_url, player_id)
 		)
 		await player.save()
-	
-	matches = [
-		make_request(build_match_url(platform_url, match['id'])) for match in matches
-	]
 
-	return  matches
+	from concurrent.futures import as_completed
+	from requests_futures.sessions import FuturesSession
+
+	return_matches = []
+	
+	with FuturesSession() as session:
+		futures = [
+			session.get(
+				build_match_url(platform_url, match['id']),
+				headers=api_settings.API_HEADER
+			) for match in matches
+		]
+		for future in as_completed(futures):
+			resp = future.result()
+			return_matches.append(resp.json())
+
+	return return_matches
 
 def get_player_match_id(player_id, match_id):
 	return "{}_{}".format(player_id, match_id)  
@@ -187,7 +205,8 @@ async def get_match_data(player_api_id, player_id):
 	.prefetch_related(
 		'match',
 		'match__map',
-		'participants'
+		'participants',
+		'participants__player'
 	)\
 	.order_by(
 		'-match__created'
@@ -225,168 +244,172 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 
 		match_id = match['data']['id']
 
-		start_time = time.time()
+		try:
 
-		match_date = datetime.strptime(match['data']['attributes']['createdAt'].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
 
-		match_map =  get_map_name(match['data']['attributes']['mapName'])
-		match_map_reference = match['data']['attributes']['mapName']
-		match_mode = correct_mode(match['data']['attributes']['gameMode'])
-		match_custom = match['data']['attributes']['isCustomMatch']
-		match_shard = match['data']['attributes']['shardId']
-		match_type = match['data']['attributes']['matchType']
+			start_time = time.time()
 
-		match_url = match['data']['links']['self']
-		match_url = match_url.replace('playbattlegrounds', 'pubg')
-		
-		match_participants =  [
-			x for x in match['included']
-			if x['type'] == 'participant'
-		]
+			match_date = datetime.strptime(match['data']['attributes']['createdAt'].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
 
-		maps = Map.filter(reference__iexact=match_map_reference)
+			match_map =  get_map_name(match['data']['attributes']['mapName'])
+			match_map_reference = match['data']['attributes']['mapName']
+			match_mode = correct_mode(match['data']['attributes']['gameMode'])
+			match_custom = match['data']['attributes']['isCustomMatch']
+			match_shard = match['data']['attributes']['shardId']
+			match_type = match['data']['attributes']['matchType']
 
-		if not maps.exists():
-			match_map = Map(
-				name=match_map,
-				reference=match_map_reference
-			)
+			match_url = match['data']['links']['self']
+			match_url = match_url.replace('playbattlegrounds', 'pubg')
+			
+			match_participants =  [
+				x for x in match['included']
+				if x['type'] == 'participant'
+			]
 
-			if save:
-				await match_map.save()
+			maps = Map.filter(reference__iexact=match_map_reference)
 
-			map_id = match_map.id
-		else:
-			map = await maps.first()
-			map_id = map.id
-
-		this_match = Match(
-			api_id=get_player_match_id(player_id, match_id),
-			created=match_date,
-			map_id=map_id,
-			mode=match_mode,
-			api_url=match_url,
-			is_custom_match=match_custom,
-			match_type=match_type,
-			total_teams=len(match_participants)
-		)
-
-		if save:
-			await this_match.save()
-
-		current_player_parsed = [
-			x for x in match_participants
-			if 'attributes' in x
-			and 'stats' in x['attributes']
-			and x['attributes']['stats']['playerId'] == player_id
-		]
-		this_participant_api_id = current_player_parsed[0]['id']
-
-		team_roster = [
-			x for x in match['included']
-			if x['type'] == 'roster'
-			and 'relationships' in x
-			and 'participants' in x['relationships']
-			and any(
-				z['id'] == this_participant_api_id for z in x['relationships']['participants']['data']
-			)
-		]
-		
-		roster_id = team_roster[0]['id']
-		roster_placement = team_roster[0]['attributes']['stats']['rank']
-
-		roster = Roster(
-			placement=roster_placement,
-			match_id=this_match.id,
-			api_id=roster_id
-		)
-
-		if save:
-			await roster.save()
-
-		roster_id = roster.id
-
-		roster_participant_ids = [
-			x['id'] for x in team_roster[0]['relationships']['participants']['data']
-		]
-
-		roster_participants = [
-			x for x in match_participants
-			if x['id'] in roster_participant_ids
-		]
-
-		for participant in roster_participants:
-
-			participant_api_id = participant['id']
-			participant_kills = participant['attributes']['stats'].get('kills', None)
-			participant_damage = participant['attributes']['stats'].get('damageDealt', None)
-			participant_placement = participant['attributes']['stats'].get('winPlace', None)
-			participant_name = participant['attributes']['stats'].get('name', None)
-			participant_player_api_id =  participant['attributes']['stats'].get('playerId', None)
-			knocks = participant['attributes']['stats'].get('DBNOs', None)
-			ride_distance = participant['attributes']['stats'].get('rideDistance', None)
-			swim_distance = participant['attributes']['stats'].get('swimDistance', None)
-			walk_distance = participant['attributes']['stats'].get('walkDistance', None)
-
-			if 'ai' in participant_player_api_id:
-				participant_is_ai = True
-			else:
-				participant_is_ai = False
-
-			player_queryset = Player.filter(api_id=participant_player_api_id)
-
-			if not await player_queryset.exists():
-				participant_player_object = Player(
-					api_id=participant_player_api_id,
-					platform_url=platform_url,
-					api_url=build_player_account_id_url(platform_url, player_id)
+			if not maps.exists():
+				match_map = Map(
+					name=match_map,
+					reference=match_map_reference
 				)
 
 				if save:
-					await participant_player_object.save()
+					await match_map.save()
+
+				map_id = match_map.id
 			else:
-				participant_player_object = await player_queryset.first()
+				map = await maps.first()
+				map_id = map.id
 
-			participant_player_object_id = participant_player_object.id
-
-			participant_object = Participant(
-				api_id=participant_api_id,
-				kills=participant_kills,
-				player_name=participant_name,
-				placement=participant_placement,
-				damage=participant_damage,
-				player_id=participant_player_object_id,
-				is_ai=participant_is_ai,
-				knocks=knocks,
-				ride_distance=ride_distance,
-				swim_distance=swim_distance,
-				walk_distance=walk_distance,
+			this_match = Match(
+				api_id=get_player_match_id(player_id, match_id),
+				created=match_date,
+				map_id=map_id,
+				mode=match_mode,
+				api_url=match_url,
+				is_custom_match=match_custom,
+				match_type=match_type,
+				total_teams=len(match_participants)
 			)
 
 			if save:
-				await participant_object.save()
+				await this_match.save()
 
-			particpant_id = participant_object.id
+			current_player_parsed = [
+				x for x in match_participants
+				if 'attributes' in x
+				and 'stats' in x['attributes']
+				and x['attributes']['stats']['playerId'] == player_id
+			]
+			this_participant_api_id = current_player_parsed[0]['id']
+
+			team_roster = [
+				x for x in match['included']
+				if x['type'] == 'roster'
+				and 'relationships' in x
+				and 'participants' in x['relationships']
+				and any(
+					z['id'] == this_participant_api_id for z in x['relationships']['participants']['data']
+				)
+			]
 			
-			roster_participant = RosterParticipant(
-				roster_id=roster_id,
-				participant_id=particpant_id
+			roster_id = team_roster[0]['id']
+			roster_placement = team_roster[0]['attributes']['stats']['rank']
+
+			roster = Roster(
+				placement=roster_placement,
+				match_id=this_match.id,
+				api_id=roster_id
 			)
 
 			if save:
-				await roster_participant.save()
-		
-		seconds_taken = "{:0.4f}".format(time.time() - start_time)
-		total_time_taken += time.time() - start_time
-		message =  f"[{match_count}/{json_length}] ({match_id}) took {seconds_taken}(s)"
-		print(message)
+				await roster.save()
 
-		# except:
-		# 	print(f'Threw the following error when trying to parse a match ({match_id}). {sys.exc_info()[1]}')
+			roster_id = roster.id
+
+			roster_participant_ids = [
+				x['id'] for x in team_roster[0]['relationships']['participants']['data']
+			]
+
+			roster_participants = [
+				x for x in match_participants
+				if x['id'] in roster_participant_ids
+			]
+
+			for participant in roster_participants:
+
+				participant_api_id = participant['id']
+				participant_kills = participant['attributes']['stats'].get('kills', None)
+				participant_damage = participant['attributes']['stats'].get('damageDealt', None)
+				participant_placement = participant['attributes']['stats'].get('winPlace', None)
+				participant_name = participant['attributes']['stats'].get('name', None)
+				participant_player_api_id =  participant['attributes']['stats'].get('playerId', None)
+				knocks = participant['attributes']['stats'].get('DBNOs', None)
+				ride_distance = participant['attributes']['stats'].get('rideDistance', None)
+				swim_distance = participant['attributes']['stats'].get('swimDistance', None)
+				walk_distance = participant['attributes']['stats'].get('walkDistance', None)
+
+				if 'ai' in participant_player_api_id:
+					participant_is_ai = True
+				else:
+					participant_is_ai = False
+
+				player_queryset = Player.filter(api_id=participant_player_api_id)
+
+				if not await player_queryset.exists():
+					participant_player_object = Player(
+						api_id=participant_player_api_id,
+						platform_url=platform_url,
+						api_url=build_player_account_id_url(platform_url, player_id)
+					)
+
+					if save:
+						await participant_player_object.save()
+				else:
+					participant_player_object = await player_queryset.first()
+
+				participant_player_object_id = participant_player_object.id
+
+				participant_object = Participant(
+					api_id=participant_api_id,
+					kills=participant_kills,
+					player_name=participant_name,
+					placement=participant_placement,
+					damage=participant_damage,
+					player_id=participant_player_object_id,
+					is_ai=participant_is_ai,
+					knocks=knocks,
+					ride_distance=ride_distance,
+					swim_distance=swim_distance,
+					walk_distance=walk_distance,
+				)
+
+				if save:
+					await participant_object.save()
+
+				particpant_id = participant_object.id
+				
+				roster_participant = RosterParticipant(
+					roster_id=roster_id,
+					participant_id=particpant_id
+				)
+
+				if save:
+					await roster_participant.save()
+			
+			seconds_taken = "{:0.4f}".format(time.time() - start_time)
+			total_time_taken += time.time() - start_time
+			message =  f"[{match_count}/{json_length}] ({match_id}) took {seconds_taken}(s)"
+			logger.info(message)
+
+		except:
+			message = f'Threw the following error when trying to parse a match ({match_id}). {sys.exc_info()[1]}'
+			logger.info(message)
 
 	total_time_taken = "{:0.4f}".format(total_time_taken)
 	message =  f"Took a total of {total_time_taken}(s)"
-	print(message)
+	logger.info(message)
 
 
 

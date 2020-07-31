@@ -1,7 +1,7 @@
-from inspect import getmembers
-
 from fastapi import FastAPI
 from tortoise.contrib.starlette import register_tortoise
+import asyncio
+from models import *
 
 def init(app):
 	"""
@@ -9,7 +9,6 @@ def init(app):
 	:return:
 	"""
 	init_db(app)
-
 
 def init_db(app):
 	"""

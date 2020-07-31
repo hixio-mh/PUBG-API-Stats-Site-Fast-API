@@ -63,25 +63,15 @@
 		<div class='card-header' style="text-align: center">
 			Welcome!
 		</div>
-		<div class="card-body" style='padding: 0'>
-			<br>
-			<form method="POST" action='/search' class="form-horizontal no-margin no-padding" style='margin-bottom: 0; padding-bottom: 0' id='search_form'>
-				{% set display_both = false %}
-				{{ forms.search_field(name='player_name', type='text', placeholder='Enter a Players Name', required='true', value=player_name, display=false) }}
-				{{ forms.select_field(name='platform', type='text', required='true', options=platform_selections, value=platform, display=false) }}
-				{% if display_both %}
-					<hr>
-				{% endif %}
-				<input type="submit" style="display: none"/>
-			</form>
+		<div class="card-body">
 			{{ forms.select_field_two_one_line(name_one='perspective', required_one='false', options_one=perspective_selections, name_two='game_mode', required_two='false', options_two=gamemode_selections) }}
-			
 			<div id='recent_searches' style='display: none; padding-left: 20px; padding-right: 20px; padding-bottom: 20px;'>
 				<hr>
 				<h6>Some of your recent Searches:</h6>
 			</div>
-			<input type="hidden" id="player_id" value="null">
-			<input type="hidden" id="player_name" value="null">
+			<input type="hidden" id="id_platform" value="{{ platform }}">
+			<input type="hidden" id="player_id" value="{{ account_id }}">
+			<input type="hidden" id="player_name" value="{{ player_name }}">
 			<input type="hidden" id="season_stats_endpoint" value="/retrieve_season_stats">
 			<input type="hidden" id="retrieve_matches" value="/retrieve_matches">
 		</div>
@@ -190,6 +180,7 @@
 			<table class='table table-sm' id='results_datatable'  style="width:100%">
 				<thead>
 					<tr>
+						<th>id</th>
 						<th width='8'></th>
 						<th width='8%'>Map</th>
 						<th width='8%'>Mode</th>
@@ -203,6 +194,7 @@
 				</tbody>
 				<tfoot>
 					<tr>
+						<th>id</th>
 						<th></th>
 						<th>Map</th>
 						<th>Mode</th>
