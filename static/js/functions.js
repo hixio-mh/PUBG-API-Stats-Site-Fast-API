@@ -58,7 +58,7 @@ $(document).ready(function() {
 		},
 		clearSeasonStats: function(){
 			var elements = ['duo_season_stats','duo_season_matches','duo_season_damage__figure','duo_season_damage__text','duo_season_headshots__figure','duo_season_headshots__text','duo_season_kills__figure','duo_season_kills__text','duo_season_longest_kill__figure','duo_season_longest_kill__text','duo_fpp_season_stats','duo_fpp_season_matches','duo_fpp_season_damage__figure','duo_fpp_season_damage__text','duo_fpp_season_headshots__figure','duo_fpp_season_headshots__text','duo_fpp_season_kills__figure','duo_fpp_season_kills__text','duo_fpp_season_longest_kill__figure','duo_fpp_season_longest_kill__text','solo_fpp_season_stats','solo_fpp_season_matches','solo_fpp_season_damage__figure','solo_fpp_season_damage__text','solo_fpp_season_headshots__figure','solo_fpp_season_headshots__text','solo_fpp_season_kills__figure','solo_fpp_season_kills__text','solo_fpp_season_longest_kill__figure','solo_fpp_season_longest_kill__text','solo_season_stats','solo_season_matches','solo_season_damage__figure','solo_season_damage__text','solo_season_headshots__figure','solo_season_headshots__text','solo_season_kills__figure','solo_season_kills__text','solo_season_longest_kill__figure','solo_season_longest_kill__text','squad_season_stats','squad_season_matches','squad_season_damage__figure','squad_season_damage__text','squad_season_headshots__figure','squad_season_headshots__text','squad_season_kills__figure','squad_season_kills__text','squad_season_longest_kill__figure','squad_season_longest_kill__text','squad_fpp_season_stats','squad_fpp_season_matches','squad_fpp_season_damage__figure','squad_fpp_season_damage__text','squad_fpp_season_headshots__figure','squad_fpp_season_headshots__text','squad_fpp_season_kills__figure','squad_fpp_season_kills__text','squad_fpp_season_longest_kill__figure','squad_fpp_season_longest_kill__text']
-			let len;
+
 			for (let i = 0, len=elements.length; i < len; i++){
 				document.getElementById(elements[i]).innerHTML = ''
 
@@ -68,18 +68,18 @@ $(document).ready(function() {
 			}
 		},
 		filterResults(){
-			let game_mode = this.getGameMode()
-			let perspective = this.getPerspective()
+			let game_mode = app.getGameMode()
+			let perspective = app.getPerspective()
 			let not_matching_criteria_message = $('#not_matching')
 
-			let filter = this.getGameModeFilter(game_mode, perspective)
+			let filter = app.getGameModeFilter(game_mode, perspective)
 			
 			if(filter){
 
 				let cards_not_matching_filter  = $(`.roster_card:not([data-game-mode*='${filter}'])`);
 				let cards_matching_filter = $(`.roster_card[data-game-mode*='${filter}']`);
 
-				if(this.matches_as_cards){
+				if(app.matches_as_cards){
 					$('#datatable_container').hide()
 					$('#card_container').show()
 
@@ -102,7 +102,7 @@ $(document).ready(function() {
 				$(".roster_card").show();
 				not_matching_criteria_message.hide()
 				table.search('').columns().search('').draw();
-				if(this.matches_as_cards){
+				if(app.matches_as_cards){
 					$('#datatable_container').hide()
 					$('#card_container').show()
 				} else {
@@ -156,14 +156,12 @@ $(document).ready(function() {
 		retrievePlayerSeasonStats: function(ranked){
 
 			if(
-				(ranked && this.season_requested.ranked)
+				(ranked && app.season_requested.ranked)
 				|| 
-				(!ranked && this.season_requested.normal)
+				(!ranked && app.season_requested.normal)
 			){
 				return
 			}
-
-			let that = this
 			
 			if(ranked){
 				$("#ranked_season_stats").LoadingOverlay("show");
@@ -173,55 +171,44 @@ $(document).ready(function() {
 
 			$.ajax({
 				data: {
-					player_id: that.getPlayerId(),
-					platform: that.getPlatform(),
-					perspective: that.getPerspective(),
+					player_id: app.getPlayerId(),
+					platform: app.getPlatform(),
+					perspective: app.getPerspective(),
 					ranked: ranked
 				},
 				type: 'POST',
-				url: that.getSeasonsEndpoint()
+				dataType: 'json',
+				url: app.getSeasonsEndpoint()
 			}).done(function(data){
 
 				if(ranked){
-					that.season_requested.ranked = true
+					app.season_requested.ranked = true
 				} else {
-					that.season_requested.normal = true
+					app.season_requested.normal = true
 				}
 
-				let len = data.length;
-				let key;
-
-				let extras = []
-
-				for (let i = 0; i < len; i++){
-					for(key in data[i]){
+				for (let i = 0, len=data.length; i < len; i++){
+					for(let key in data[i]){
 						if(key !== 'container' && key !== 'text' && key !== 'keys'){
 							document.getElementById(key).innerHTML = data[i][key]
 						} else {
 							if(key == 'container'){
-								extras.push(data[i])
+								$(`#${data[i].container}`).LoadingOverlay("show", {
+									background: "rgba(255, 255, 255, 1)",
+									image: false,
+									fontawesome: `fa fa-exclamation-circle`,
+									fontawesomeAutoResize: true,
+									text: `${data[i].text}`,
+									textAutoResize: true,
+									size: 40,
+									maxSize: 40,
+									minSize: 40
+								});
 							}
 						}
 					}
 				}
 
-				if(extras.length > 0){
-					let len = extras.length;
-					for (let i = 0; i < len; i++){
-						$(`#${extras[i].container}`).LoadingOverlay("show", {
-							background: "rgba(255, 255, 255, 1)",
-							image: false,
-							fontawesome: `fa fa-exclamation-circle`,
-							fontawesomeAutoResize: true,
-							text: `${extras[i].text}`,
-							textAutoResize: true,
-							size: 40,
-							maxSize: 40,
-							minSize: 40
-						});
-					}
-				}
-					
 				if(ranked){
 					$("#ranked_season_stats").LoadingOverlay("hide", true);
 				} else {
@@ -270,10 +257,8 @@ $(document).ready(function() {
 					</thead>
 					<tbody>
 			`
-			let len;
-			let i;
 				
-			for (i=0, len=data.length; i < len; i++){
+			for (let i=0, len=data.length; i < len; i++){
 				generated_table_rows += `
 					<tr>
 						<td class='text-center'>${data[i].player_name}</td>
@@ -291,10 +276,8 @@ $(document).ready(function() {
 		
 		},
 		getRosterForMatch: function(match_id, datatable_id){
-			
-			let that = this;
 
-			if(!that.table_rosters[datatable_id]){
+			if(!app.table_rosters[datatable_id]){
 				
 				let roster_table = $(`#${datatable_id}`).DataTable({
 					columns: [
@@ -308,7 +291,7 @@ $(document).ready(function() {
 					responsive: true
 				});
 
-				that.table_rosters[datatable_id] = {
+				app.table_rosters[datatable_id] = {
 					actual_data: [],
 					datatable: roster_table,
 				}
@@ -320,20 +303,18 @@ $(document).ready(function() {
 					url: `/match_rosters/${match_id}/`
 				}).done(function(data){
 					let rosters = data.rosters
-					let i;
-					let len;
-					for (i = 0, len=rosters.length; i < len; i++){						
-						that.table_rosters[datatable_id].actual_data.push({
+					for (let i = 0, len=rosters.length; i < len; i++){						
+						app.table_rosters[datatable_id].actual_data.push({
 							roster_rank: rosters[i].roster_rank,
 							participant_objects: rosters[i].participant_objects,
 						})
 					}
-					that.table_rosters[datatable_id].datatable.rows.add(that.table_rosters[datatable_id].actual_data).draw(false)
+					app.table_rosters[datatable_id].datatable.rows.add(app.table_rosters[datatable_id].actual_data).draw(false)
 					$(`#${datatable_id}`).LoadingOverlay("hide", true);
 				});
 			} else {
 				let roster_table = $(`#${datatable_id}`).DataTable({
-					data: that.table_rosters[datatable_id].datatable.rows().data(),
+					data: app.table_rosters[datatable_id].datatable.rows().data(),
 					columns: [
 						{ data: 'roster_rank', width: '15%' }, // rank
 						{ data: 'participant_objects', width: '85%' }, // rosters
@@ -345,14 +326,14 @@ $(document).ready(function() {
 					responsive: true
 				});
 				roster_table.draw(false);
-				that.table_rosters[datatable_id].datatable = roster_table    
+				app.table_rosters[datatable_id].datatable = roster_table    
 			}
 		},
 		seasonStatToggle: function(perspective) {
 	
 			switch(perspective){
 				case 'fpp':
-					if(this.ranked_showing){
+					if(app.ranked_showing){
 						$('#fpp_row').show()
 						$('#tpp_row').hide()
 					} else {
@@ -361,7 +342,7 @@ $(document).ready(function() {
 					}
 					break;
 				case 'tpp':
-					if(this.ranked_showing){
+					if(app.ranked_showing){
 						$('#ranked_tpp_row').show()
 						$('#ranked_fpp_row').hide()
 					} else {
@@ -370,7 +351,7 @@ $(document).ready(function() {
 					}
 					break;
 				default:
-					if(this.ranked_showing){
+					if(app.ranked_showing){
 						$('#ranked_tpp_row, #ranked_fpp_row').show()
 					} else {
 						$('#tpp_row, #fpp_row').show()
@@ -380,15 +361,14 @@ $(document).ready(function() {
 
 		},
 		checkDown: function(){
-			let that = this;
 			$.ajax({
 				type: 'GET',
 				url:'/backend_status',
 			}).done(function(data){
 				if(data.backend_status == true){
-					that.down = true
+					app.down = true
 				} else {
-					that.down = false
+					app.down = false
 				}
 			});
 		}
@@ -414,53 +394,44 @@ $(document).ready(function() {
 				let json_data = json.data
 
 				if(json_data){
-					for (i = 0, len=json_data.length; i < len; i++){
+					for (let i = 0, len=json_data.length; i < len; i++){
 						let match_id = json_data[i].id
 
 						if(!app.seen_match_ids.includes(match_id)){
 							app.actual_data.push(json_data[i])
 							app.seen_match_ids.push(match_id)
 
-							let map = json_data[i].map
-							let mode = json_data[i].mode
-							let date_created = json_data[i].date_created
-							let team_placement = json_data[i].team_placement
-							let btn_link = json_data[i].btn_link
 							let raw_mode = json_data[i].raw_mode
-							let time_since = json_data[i].time_since
 							let team_details_object = json_data[i].team_details_object
-							let kills = 0
+							let current_player = team_details_object.find(player => {
+								return player.player_name == player_name
+							})
+							let kills = current_player.kills || 0
 
 							let display = 'display: inline-block';
 							if(!app.display_as_cards){
 								display = 'display: none;'
 							} 
 
-							for (let j = 0, len2=team_details_object.length; j < len2; j++){
-								let player_object_name = team_details_object[j].player_name;
-								if(player_object_name == player_name){
-									kills = team_details_object[j].kills
-								} else {
-									continue
-								}
-							}
-
 							let generated_team_data = app.formatRosterCardTable(team_details_object)
-							let card_template =  `
+					
+							card = {
+								date_created: json_data[i].date_created,
+								template: `
 								<div class="col-md-4 roster_card" data-game-mode="${raw_mode.toLowerCase()}" style='margin-bottom: 15px; ${display}'>
 									<div class="card shadow-sm">
 										<div class="card-header">
-											<span class='float-left'>${map}</span>
-											<span class='float-right'>${time_since}</span>
+											<span class='float-left'>${json_data[i].map}</span>
+											<span class='float-right'>${json_data[i].time_since}</span>
 										</div>
 										<div class="card-body" style='padding: 20px'>
 											<div class='row'>
-												<a role="button" style='margin-left: 15px; margin-right: 15px' href="${btn_link}" class='btn btn-primary btn-block stretched-link'>View match</a>
+												<a role="button" style='margin-left: 15px; margin-right: 15px' href="${json_data[i].btn_link}" class='btn btn-primary btn-block stretched-link'>View match</a>
 											</div>
 											<div class='row top-buffer'>
 												<div class='col-md-6'>
 													<span class="w-100 badge badge" style='padding: 20px; margin:0px; background-color: #f5f5f5'>
-														<h6>Place<br>${team_placement}</h6>
+														<h6>Place<br>${json_data[i].team_placement}</h6>
 													</span>
 												</div>
 												<div class='col-md-6'>
@@ -476,11 +447,11 @@ $(document).ready(function() {
 															<tbody>
 																<tr>
 																	<th class='card-header' width='40%'>Date Created</th>
-																	<td class='card-body'>${date_created}</td>
+																	<td class='card-body'>${json_data[i].date_created}</td>
 																</tr>
 																<tr>
 																	<th class='card-header' width='40%'>Mode</th>
-																	<td class='card-body'>${mode}</td>
+																	<td class='card-body'>${json_data[i].mode}</td>
 																</tr>
 															</tbody>
 														</table>
@@ -494,10 +465,6 @@ $(document).ready(function() {
 									</div>
 								</div>
 							`
-					
-							card = {
-								date_created: date_created,
-								template: card_template
 							}
 							app.cards.push(card)
 						}
@@ -549,8 +516,8 @@ $(document).ready(function() {
 		],
 		pageLength: 25,
 		filter: true,
+		deferRender: true,
 		order: [[ 4, "desc" ]],
-		stateSave: true,
 		language: {
 			emptyTable: 'This player has either played no matches in the last 14 days, or we are currently processing this players matches.'
 		},
