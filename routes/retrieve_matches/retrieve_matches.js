@@ -2,7 +2,7 @@ const axios = require('axios')
 
 module.exports = async function (fastify, opts, done) {
 
-	const django_ip = fastify.django_ip
+	const fastapi_ip = fastify.fastapi_ip
 
 	fastify.post('/retrieve_matches', async(req, res) => {
 		
@@ -15,7 +15,7 @@ module.exports = async function (fastify, opts, done) {
 			seen_match_ids: req.body.seen_match_ids
 		}
 
-		await axios.post(`http://${django_ip}:8000/retrieve_matches/`, player_obj).then(function (api_response) {
+		await axios.post(`http://${fastapi_ip}:8000/retrieve_matches/`, player_obj).then(function (api_response) {
 			return res.code(200).send({
 				message: api_response.data.message,
 				data: api_response.data.data,
@@ -23,7 +23,9 @@ module.exports = async function (fastify, opts, done) {
 				error: api_response.data.error
 			})
 		}).catch(function (error) {
-			return res.code(500).view('error.html')
+			return res.code(500).view('error.html', {
+				error: error
+			})
 		})
 
 	})

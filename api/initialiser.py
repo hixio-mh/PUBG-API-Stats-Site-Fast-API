@@ -1,6 +1,4 @@
-from fastapi import FastAPI
-from tortoise.contrib.starlette import register_tortoise
-import asyncio
+from tortoise.contrib.fastapi import register_tortoise
 from models import *
 
 def init(app):

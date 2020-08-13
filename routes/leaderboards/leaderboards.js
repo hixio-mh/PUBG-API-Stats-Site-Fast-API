@@ -3,13 +3,13 @@ const constants = require('../../constants')
 
 module.exports = async function (fastify, opts, done) {
 	
-	const django_ip = fastify.django_ip
+	const fastapi_ip = fastify.fastapi_ip
 	
 	fastify.get('/leaderboards/:platform', async (req, res) => {
 
 		let platform = req.params.platform
 
-		let url = `http://${django_ip}:8000/seasons_for_platform/`
+		let url = `http://${fastapi_ip}:8000/seasons_for_platform/`
 		
 		await axios.post(url, { platform: platform }).then(function (api_response) {
 			let seasons = api_response.data
@@ -67,12 +67,14 @@ module.exports = async function (fastify, opts, done) {
 		let season_id = req.params.season_id
 		let game_mode = req.params.game_mode
 
-		let url = `http://${django_ip}:8000/leaderboards/`
+		let url = `http://${fastapi_ip}:8000/leaderboards/`
 
 		await axios.post(url, { platform: platform, season_id: season_id, game_mode: game_mode }).then(function (api_response) {
 			return res.code(200).send(api_response.data)
 		}).catch(function (error) {
-			return res.code(500).view('error.html')
+			return res.code(500).view('error.html', {
+				error: error
+			})
 		})
 		
 	})

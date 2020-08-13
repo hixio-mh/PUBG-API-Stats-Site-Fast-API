@@ -6,12 +6,13 @@
 
 
 {% block body %}
-<script type="application/javascript">
+<script defer>
+
+	const telem_data = {{ telemetry_data.match_data.events|dump|safe }};
+	const map_name = "{{ telemetry_data.match_data.match_map_name }}";
+	const roster_data = {{ telemetry_data.match_data.player_breakdown.rosters|dump|safe }};
 
 	$(document).ready(function () {
-		const map_name = "{{ telemetry_data.match_data.match_map_name }}"
-
-		const telem_data = {{ telemetry_data.match_data.events|dump|safe }};
 
 		const x_y_co_ords = [
 			{%- for telemetry in telemetry_data.match_data.events -%}
@@ -24,8 +25,6 @@
 				{%- endif -%}
 			{%- endfor -%}
 		];
-		
-		const roster_data = {{ telemetry_data.match_data.player_breakdown.rosters|dump|safe }}
 
 		$('#telemetry_datatable_datatable').DataTable({
 			data: telem_data,

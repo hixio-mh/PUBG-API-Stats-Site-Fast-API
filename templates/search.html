@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block functions %}
-	<script src="static/js/cookies.js"></script>
+	<script src="static/js/cookies.js" defer></script>
 
-	<script type="text/javascript">
+	<script defer>
 		$(document).ready(function() {
 			let player_names = window.getCookie('playerNames')
 			
@@ -62,7 +62,7 @@
 			<p>Q: What can we do with this site?</p>
 			<p>A: Well, currently it is pretty simple. But, currently this site has the following features
 				<ol>
-					<li>View any PUBG Matches from a user played in the last 14 days (<a href='/user/dstlny/platform/steam/'>Me, for example</a>)</li>
+					<li>View any PUBG Matches from a user played in the last 14 days (<a href='/user/dstlny/'>Me, for example</a>)</li>
 					<li>View the details of a given match, as well as what happend in a given match.</li>
 					<li>View other people which participated in those matches.</li>
 					<li>Filter the list of matches by Game Mode, Perspective, and view an entire leaderboard of those matches.</li>

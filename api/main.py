@@ -26,7 +26,13 @@ from cache_utils import *
 import json
 import asyncio
 
-app = FastAPI()
+app = FastAPI(
+	title='PUBG API FastAPI Wrapper',
+	description='Created by Luke Elam. Open Source PUBG Stats site for Console and PC. GitHub: https://github.com/dstlny/PUBG-API-Stats-Site-Fast-API',
+	version='1.0',
+	docs_url=None,
+	redoc_url=None
+)
 init(app)
 
 @app.get("/status/")
@@ -147,6 +153,7 @@ async def retrieve_matches(parameters: route_models.Player):
 		if match_data_exists:
 
 			from ago import human
+			import time
 
 			match_ids =  await match_data.distinct().values_list('match_id', flat=True)
 			match_data = await match_data
@@ -158,9 +165,16 @@ async def retrieve_matches(parameters: route_models.Player):
 						'map': roster.match.map.name if roster.match.map else None,
 						'mode': f'{roster.match.mode.upper()}<br>' + '<span class="badge badge-success">Ranked</span>' if roster.match.match_type and 'comp' in roster.match.match_type  else f'{roster.match.mode.upper()}<br><span class="badge badge-secondary">Not Ranked</span>',
 						'raw_mode': f'{roster.match.mode.upper()}',
-						'date_created': datetime.strftime(roster.match.created, '%d/%m/%Y %H:%M:%S'),
+						'date_created': {
+							'display': datetime.strftime(roster.match.created, '%d/%m/%Y %H:%M:%S'), ## this is what will display in the datatable.
+							'timestamp': datetime.timestamp(roster.match.created) ## this is what the datatable will sort by
+						},
 						'time_since': human(roster.match.created),
-						'team_details': ''.join([f"{x.player_name}: {x.kills} kill(s) | {x.damage} damage<br>" for x in await roster.participants.all()]),
+						'team_details': ''.join(
+							[
+								f"{x.player_name}: {x.kills} kill(s) | {x.damage} damage<br>" for x in await roster.participants.all()
+							]
+						),
 						'team_details_object': [
 							{
 								'kills': x.kills,
@@ -541,7 +555,19 @@ async def seasons_for_platform(parameters: route_models.Player):
 
 	return response
 
-	
+@app.post("/player/")
+async def get_player(parameters: route_models.Player):
+
+	player_name = parameters.player_name
+
+	participant = await Participant.filter(player_name__iexact=player_name).prefetch_related('player').order_by('-id').first()
+	latest_participant = await participant
+
+	return { 
+		'platform': get_platform(latest_participant.player.platform_url),
+		'api_id': latest_participant.player.api_id
+	}
+
 import uvicorn
 
 if __name__ == "__main__":

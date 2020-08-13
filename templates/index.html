@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block extra_functions %}
-	<script src="/static/js/cookies.js"></script>
+	<script src="/static/js/cookies.js" defer></script>
 
-	<script type="text/javascript">
+	<script defer>
 		window.cookies = function(){
 			let player_names = window.getCookie('playerNames')
 
@@ -46,7 +46,7 @@
 {% endblock %}
 
 {% block body %}
-	<style>
+	<style type='text/css'>
 		td.details-control {
 			background: url('https://www.datatables.net/examples/resources/details_open.png') no-repeat center center;
 			cursor: pointer;
@@ -192,18 +192,6 @@
 				</thead>
 				<tbody>
 				</tbody>
-				<tfoot>
-					<tr>
-						<th>id</th>
-						<th></th>
-						<th>Map</th>
-						<th>Mode</th>
-						<th>Created</th>
-						<th>Placement</th>
-						<th>Details</th>
-						<th></th>
-					</tr>
-				</tfoot>
 			</table>
 		</div>
 	</div>

@@ -19,6 +19,7 @@ $(document).ready(function() {
 		ranked_showing: false,
 		matches_as_cards: false,
 		cards: [],
+		child_rows: [],
 
 		getPlayerName: function(){
 			return document.getElementById("player_name").value
@@ -216,7 +217,7 @@ $(document).ready(function() {
 				}
 				$('#seasons_container').show();
 			}).fail(function(data){
-				console.log(data)
+				app.checkDown()
 			});
 	
 		},
@@ -311,7 +312,9 @@ $(document).ready(function() {
 					}
 					app.table_rosters[datatable_id].datatable.rows.add(app.table_rosters[datatable_id].actual_data).draw(false)
 					$(`#${datatable_id}`).LoadingOverlay("hide", true);
-				});
+				}).fail(function(error){
+					app.checkDown()
+				})
 			} else {
 				let roster_table = $(`#${datatable_id}`).DataTable({
 					data: app.table_rosters[datatable_id].datatable.rows().data(),
@@ -375,8 +378,6 @@ $(document).ready(function() {
 		
 	}
 
-	$.fn.dataTable.moment('dd/mm/YYYY hh:ii:ss');
-
 	var player_name = app.getPlayerName();
 
 	table = $('#results_datatable').DataTable({
@@ -392,6 +393,7 @@ $(document).ready(function() {
             },
 			dataSrc: function (json) {
 				let json_data = json.data
+				let new_data = false
 
 				if(json_data){
 					for (let i = 0, len=json_data.length; i < len; i++){
@@ -400,6 +402,7 @@ $(document).ready(function() {
 						if(!app.seen_match_ids.includes(match_id)){
 							app.actual_data.push(json_data[i])
 							app.seen_match_ids.push(match_id)
+							new_data = true
 
 							let raw_mode = json_data[i].raw_mode
 							let team_details_object = json_data[i].team_details_object
@@ -416,7 +419,7 @@ $(document).ready(function() {
 							let generated_team_data = app.formatRosterCardTable(team_details_object)
 					
 							card = {
-								date_created: json_data[i].date_created,
+								date_created: json_data[i].date_created.timestamp,
 								template: `
 								<div class="col-md-4 roster_card" data-game-mode="${raw_mode.toLowerCase()}" style='margin-bottom: 15px; ${display}'>
 									<div class="card shadow-sm">
@@ -447,7 +450,7 @@ $(document).ready(function() {
 															<tbody>
 																<tr>
 																	<th class='card-header' width='40%'>Date Created</th>
-																	<td class='card-body'>${json_data[i].date_created}</td>
+																	<td class='card-body'>${json_data[i].date_created.display}</td>
 																</tr>
 																<tr>
 																	<th class='card-header' width='40%'>Mode</th>
@@ -470,19 +473,25 @@ $(document).ready(function() {
 						}
 					}
 
-					if(app.cards){				
+					// if we actually have new data, then we can draw the cards
+					if (new_data){
+						// sort them by date			
 						app.cards.sort(function(a,b){
 							// Turn your strings into dates, and then subtract them
 							// to get a value that is either negative, positive, or zero.
 							return new Date(b.date_created) - new Date(a.date_created);
 						});	
+
+						// remove all the current cards
 						$('div.roster_card').remove()
-			
+						
+						// create them, in the correct order
 						for (let cards_i = 0, cards_len=app.cards.length; cards_i < cards_len; cards_i++){
 							$('#card_container_row').append(app.cards[cards_i].template)
 						}
 					}
-
+					
+					// return the data	
 					return app.actual_data
 				} else {
 					return []
@@ -490,10 +499,16 @@ $(document).ready(function() {
 			}
 		},
 		createdRow: function (row, data, _) {
+			// set the ID of the row, to the id of the match
 			row.id = data.id
         },
-		drawCallback: function( settings ) {
+		drawCallback: function(settings) {
 			$('#seasons_container').show();
+
+			// re-open previously opened rows pre refresh
+			$.each(app.child_rows, function (i, id) {
+				$('#' + id + ' td.details-control').trigger('click');
+			});
 		},
 		columns: [
 			{
@@ -509,7 +524,11 @@ $(document).ready(function() {
 			},
 			{ width: '10%', data: 'map' }, // map
 			{ width: '10%', data: 'mode' }, // mode
-			{ width: '15%', data: 'date_created' }, // created
+			{ width: '15%', data: {
+               	 	_:    "date_created.display",
+               		sort: "date_created.timestamp"
+				} // created
+			},
 			{ width: '10%', data: 'team_placement' }, // placement
 			{ width: '30%', data: 'team_details' }, // details
 			{ width: '20%', data: 'actions' }, // actions
@@ -527,6 +546,7 @@ $(document).ready(function() {
 	table.on('click', 'td.details-control', function () {
 		let tr = $(this).closest('tr');
 		let id = tr[0].id
+		let idx = $.inArray(id, app.child_rows);
 		let row = table.row(tr);
 
 		let returned_obj = app.formatChildRow(id)
@@ -536,10 +556,18 @@ $(document).ready(function() {
 		if (row.child.isShown()) {
 			row.child.hide();
 			tr.removeClass('shown');
+
+			app.child_rows.splice(idx, 1);
 		} else {
 			row.child(html).show();
 			app.getRosterForMatch(id, datatable_id)
 			tr.addClass('shown');
+
+
+			// if this wasn't found
+			if (idx === -1) {
+				app.child_rows.push(id)
+			}
 		}
 	});
 
@@ -577,32 +605,10 @@ $(document).ready(function() {
 	}
 	window.requestSeasonStats = requestSeasonStats
 
-
 	// basically, lets destroy the roster tables because, well, we're going to the next (or prev) page - no need to keep it around
 	table.on('page.dt', function() {
 		app.table_rosters = {}
-	});
-
-	$('#results_datatable tfoot th').each(function(idx) {
-		if(idx !== 0 && idx !== 6){
-			var title = $(this).text();
-			$(this).html('<input class="form-control" style="width: 100%;" type="text" placeholder="Search ' + title + '" />');
-		}
-	});
-	
-	// Apply the search
-	table.columns().every(function(idx) {
-		if(idx !== 0 && idx !== 6){
-			var that = this;
-		
-			$('input', this.footer()).on('keyup change', function() {
-				if (that.search() !== this.value) {
-					that
-					.search(this.value)
-					.draw();
-				}
-			});
-		}
+		app.child_rows = []
 	});
 
 	app.hideInitial();
@@ -622,5 +628,5 @@ $(document).ready(function() {
 
 	setInterval(function () {
 		table.ajax.reload(null, false);
-	}, 15000);
+	}, 1000*30);
 });

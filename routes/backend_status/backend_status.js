@@ -7,9 +7,7 @@ module.exports = async function (fastify, opts, done) {
 
 		await utlity.checkStatusPromise()
 		.then(function(result) {
-			return res.code(200).send({
-				backend_status: result
-			})
+			return result
 		})
 
 	})

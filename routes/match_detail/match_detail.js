@@ -3,13 +3,11 @@ const util = require('util')
 
 module.exports = async function (fastify, opts, done) {
 	
-	const django_ip = fastify.django_ip
+	const fastapi_ip = fastify.fastapi_ip
 	
 	fastify.get('/match_detail/:match_id/', async (req, res) => {
 
-		let url = `http://${django_ip}:8000/match_detail/${req.params.match_id}/`
-
-		console.log(url)
+		let url = `http://${fastapi_ip}:8000/match_detail/${req.params.match_id}/`
 
 		await axios.post(url).then(function (api_response) {
 			let urls = []
@@ -23,7 +21,9 @@ module.exports = async function (fastify, opts, done) {
 				urls: urls
 			})
 		}).catch(function (api_response) {
-			return res.code(500).view('error.html')
+			return res.code(500).view('error.html', {
+				error: error
+			})
 		})
 	})
 

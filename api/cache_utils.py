@@ -1,10 +1,9 @@
 from models import Cache
 from datetime import datetime, timedelta
 import base64
+import pickle
 
 async def get_from_cache(cache_key):
-
-	import pickle
 
 	cache = await Cache.filter(cache_key=cache_key).first()
 
@@ -43,8 +42,6 @@ async def cache_touch(cache_key, minutes):
 	return False
 
 async def create_cache(cache_key, content, minutes=30):
-
-	import pickle
 
 	pickle_protocol = pickle.HIGHEST_PROTOCOL
 

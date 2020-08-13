@@ -13,21 +13,46 @@ import requests
 
 ## py libs
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, time as datetime_time
 from os import path
 from dateutil.parser import parse
-from datetime import timedelta
 import settings as api_settings
 
 session = requests.Session()
 
-from loguru import logger
-logger.add(
-	"../logs/errors_and_debug.log",
-	format="[{time:YYYY-MM-DD HH:mm:ss}]({level}) {message}",
-	level="INFO"
-)
+import logging
 
+LOG_SQL = False
+
+## tortoise uses the DEBUG level to log SQL queries.
+## we can use this, to see which queries are being made at what time.
+## log it a file, and whalla
+## also, to see if we can optimize queries etc
+if LOG_SQL:
+	logging.basicConfig(
+		level=logging.DEBUG,
+		format='[%(asctime)s](%(levelname)s) %(message)s',
+		datefmt='%Y-%m-%d %H:%M:%S',
+		handlers=[
+			logging.FileHandler(
+				filename="../logs/sql.log"
+			)
+		]
+	)
+else:
+	logging.basicConfig(
+		level=logging.INFO,
+		format='[%(asctime)s](%(levelname)s) %(message)s',
+		datefmt='%Y-%m-%d %H:%M:%S',
+		handlers=[
+			logging.FileHandler(
+				filename="../logs/errors_and_debug.log"
+			),
+			logging.StreamHandler()
+		]
+	)
+
+logger = logging.getLogger()
 
 def build_url(platform):
 	if 'steam' in platform.strip().lower() or 'pc' in platform.strip().lower():
@@ -155,7 +180,10 @@ def make_request(url):
 		return response
 	except:
 		time.sleep(6)
-		logger.info(f'For some reason, requesting {url} failed with the following error: {sys.exc_info()[1]}.')
+
+		if not LOG_SQL:
+			logger.info(f'For some reason, requesting {url} failed with the following error: {sys.exc_info()[1]}.')
+
 		make_request(url)
 
 async def parse_player_object(player_id, platform_url, matches):
@@ -176,10 +204,10 @@ async def parse_player_object(player_id, platform_url, matches):
 	return_matches = []
 	
 	with FuturesSession() as session:
+		session.headers.update(api_settings.API_HEADER)
 		futures = [
 			session.get(
-				build_match_url(platform_url, match['id']),
-				headers=api_settings.API_HEADER
+				build_match_url(platform_url, match['id'])
 			) for match in matches
 		]
 		for future in as_completed(futures):
@@ -193,23 +221,19 @@ def get_player_match_id(player_id, match_id):
 
 async def get_match_data(player_api_id, player_id):
 
-	kwargs = {}
-
-	kwargs['participants__player_id'] = player_id
-	kwargs['match__api_id__icontains'] = player_api_id
-	kwargs['match__created__gte'] = datetime.utcnow() - timedelta(days=14)
+	## get two weeks ago, to the ealiest datetime on the first day
+	two_weeeks_ago = datetime.combine(datetime.now()-timedelta(days=14), datetime_time.min)
 
 	roster_data = Roster.filter(
-		**kwargs
+		participants__player_id=player_id,
+		match__api_id__icontains=player_api_id,
+		match__created__gte=two_weeeks_ago
 	)\
 	.prefetch_related(
 		'match',
 		'match__map',
 		'participants',
 		'participants__player'
-	)\
-	.order_by(
-		'-match__created'
 	)
 
 	return roster_data
@@ -237,6 +261,9 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 	total_time_taken = 0
 
 	save = True
+
+	maps = Map.all()
+	players = Player.all()
 
 	for match in match_json_list:
 
@@ -266,9 +293,10 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 				if x['type'] == 'participant'
 			]
 
-			maps = Map.filter(reference__iexact=match_map_reference)
+			this_map = maps.filter(reference__iexact=match_map_reference)
+			map_exists = await this_map.exists()
 
-			if not maps.exists():
+			if not map_exists:
 				match_map = Map(
 					name=match_map,
 					reference=match_map_reference
@@ -279,8 +307,8 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 
 				map_id = match_map.id
 			else:
-				map = await maps.first()
-				map_id = map.id
+				this_map = await this_map.first()
+				map_id = this_map.id
 
 			this_match = Match(
 				api_id=get_player_match_id(player_id, match_id),
@@ -355,9 +383,10 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 				else:
 					participant_is_ai = False
 
-				player_queryset = Player.filter(api_id=participant_player_api_id)
+				player_queryset = players.filter(api_id=participant_player_api_id)
+				player_exists = await player_queryset.exists()
 
-				if not await player_queryset.exists():
+				if not player_exists:
 					participant_player_object = Player(
 						api_id=participant_player_api_id,
 						platform_url=platform_url,
@@ -401,17 +430,21 @@ async def parse_player_matches(match_json_list, player_id, platform_url):
 			seconds_taken = "{:0.4f}".format(time.time() - start_time)
 			total_time_taken += time.time() - start_time
 			message =  f"[{match_count}/{json_length}] ({match_id}) took {seconds_taken}(s)"
-			logger.info(message)
+
+			if not LOG_SQL:
+				logger.info(message)
 
 		except:
 			message = f'Threw the following error when trying to parse a match ({match_id}). {sys.exc_info()[1]}'
-			logger.info(message)
+			
+			if not LOG_SQL:
+				logger.info(message)
 
 	total_time_taken = "{:0.4f}".format(total_time_taken)
 	message =  f"Took a total of {total_time_taken}(s)"
-	logger.info(message)
-
-
+	
+	if not LOG_SQL:
+		logger.info(message)
 
 async def get_player_matches(player_id, platform_url, matches):
 	player_matches = await parse_player_object(player_id, platform_url, matches)

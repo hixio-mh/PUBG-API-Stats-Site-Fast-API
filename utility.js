@@ -1,7 +1,7 @@
 const axios = require('axios')
 
-async function checkStatusPromise(django_ip){
-	return await axios.get(`http://${django_ip}:8000/status/`)
+async function checkStatusPromise(fastapi_ip){
+	return await axios.get(`http://${fastapi_ip}:8000/status/`)
 	.then(api_response => {
 		if(api_response.status == 200 && api_response.data.status == 'OK'){
 			return true
@@ -14,13 +14,13 @@ async function checkStatusPromise(django_ip){
 	})
 }
 
-function checkStatusLog(django_ip){
-	let url = `http://${django_ip}:8000/status/`
+function checkStatusLog(fastapi_ip){
+	let url = `http://${fastapi_ip}:8000/status/`
 
 	axios.get(url)
 	.then(api_response => {
 		if(api_response.status == 200 && api_response.data.status == 'OK'){
-			console.log(`Backend Django service up and running on port ${8000}!`)
+			console.log(`Backend FastAPI service up and running on port ${8000}!`)
 		}
 	})
 	.catch(error => {
@@ -28,8 +28,8 @@ function checkStatusLog(django_ip){
 	})
 }
 
-function checkStatusReturn(django_ip){
-	axios.get(`http://${django_ip}:8000/status/`)
+function checkStatusReturn(fastapi_ip){
+	axios.get(`http://${fastapi_ip}:8000/status/`)
 	.then(api_response => {
 		if(api_response.status == 200 && api_response.data.status == 'OK'){
 			return false
