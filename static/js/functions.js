@@ -412,7 +412,7 @@ $(document).ready(function() {
 							let kills = current_player.kills || 0
 
 							let display = 'display: inline-block';
-							if(!app.display_as_cards){
+							if(!app.matches_as_cards){
 								display = 'display: none;'
 							} 
 
@@ -489,6 +489,10 @@ $(document).ready(function() {
 						for (let cards_i = 0, cards_len=app.cards.length; cards_i < cards_len; cards_i++){
 							$('#card_container_row').append(app.cards[cards_i].template)
 						}
+
+						if(app.matches_as_cards){
+							$('#as_detailed_cards').click()
+						}
 					}
 					
 					// return the data	
@@ -563,8 +567,6 @@ $(document).ready(function() {
 			app.getRosterForMatch(id, datatable_id)
 			tr.addClass('shown');
 
-
-			// if this wasn't found
 			if (idx === -1) {
 				app.child_rows.push(id)
 			}
