@@ -16,7 +16,7 @@
       "fastify-static": "^3.2.0",
       "fastify-typeorm": "*",
       "minimist": "^1.2.5",
-      "mysql2": "*",
+      "mysql2": "2.2.5",
       "node": "^14.8.0",
       "nodemon": "^2.0.4",
       "nunjucks": "^3.2.2",
