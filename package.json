@@ -20,7 +20,7 @@
       "node": "^14.8.0",
       "nodemon": "^2.0.4",
       "nunjucks": "^3.2.2",
-      "point-of-view": "^4.3.0",
+      "point-of-view": "^4.15.0",
       "reflect-metadata": "*"
    },
    "devDependencies": {
